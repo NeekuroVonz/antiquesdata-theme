@@ -9,6 +9,11 @@ if (!defined('ABSPATH')) {
 	exit;
 }
 
+require_once get_template_directory() . '/inc/load-env.php';
+antiques_marketplace_load_env();
+
+require_once get_template_directory() . '/inc/membership.php';
+
 /**
  * Setup theme defaults.
  */
@@ -139,15 +144,32 @@ add_action('init', 'antiques_marketplace_bootstrap_legal_pages');
 /**
  * Get external database credentials.
  *
+ * Set MYSQL_* in the server environment or in a `.env` file in this theme directory
+ * (see `.env.example`). Avoid committing real credentials to version control.
+ *
  * @return array<string, string|int>
  */
 function antiques_marketplace_external_db_config() {
 	return array(
-		'host'     => getenv('MYSQL_HOST') ? getenv('MYSQL_HOST') : '45.76.101.127',
-		'port'     => (int) (getenv('MYSQL_PORT') ? getenv('MYSQL_PORT') : 3306),
-		'username' => getenv('MYSQL_USERNAME') ? getenv('MYSQL_USERNAME') : 'catawiki',
-		'password' => getenv('MYSQL_PASSWORD') ? getenv('MYSQL_PASSWORD') : 'Catawiki@2026Strong!',
-		'database' => getenv('MYSQL_DATABASE') ? getenv('MYSQL_DATABASE') : 'catawiki_products',
+		'host'     => antiques_marketplace_env('MYSQL_HOST'),
+		'port'     => (int) antiques_marketplace_env('MYSQL_PORT', '3306'),
+		'username' => antiques_marketplace_env('MYSQL_USERNAME'),
+		'password' => antiques_marketplace_env('MYSQL_PASSWORD'),
+		'database' => antiques_marketplace_env('MYSQL_DATABASE'),
+	);
+}
+
+/**
+ * Stripe API keys from environment or `.env`.
+ *
+ * Use test keys (pk_test_… / sk_test_…) in development.
+ *
+ * @return array{publishable_key:string, secret_key:string}
+ */
+function antiques_marketplace_stripe_config() {
+	return array(
+		'publishable_key' => antiques_marketplace_env('STRIPE_PUBLISHABLE_KEY'),
+		'secret_key'      => antiques_marketplace_env('STRIPE_SECRET_KEY'),
 	);
 }
 
@@ -565,7 +587,20 @@ function antiques_marketplace_parse_product_details( $raw_text ) {
  * @return string
  */
 function antiques_marketplace_product_permalink( $product_id ) {
-	return home_url('/product/' . absint($product_id) . '/');
+	$product_id = absint($product_id);
+	if ($product_id < 1) {
+		return home_url('/');
+	}
+
+	/*
+	 * Use query-string URLs when pretty permalinks are disabled
+	 * (or rewrite rules are unavailable) to avoid Apache-level 404s.
+	 */
+	if ('' === (string) get_option('permalink_structure')) {
+		return add_query_arg('antiques_product_id', $product_id, home_url('/'));
+	}
+
+	return home_url('/product/' . $product_id . '/');
 }
 
 /**

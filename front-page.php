@@ -19,9 +19,17 @@ get_header();
 <div class="page-layout">
 	<aside class="filters">
 		<h3><?php esc_html_e('Filter listings', 'antiques-marketplace'); ?></h3>
+		<?php
+		// Use a custom query param (not WordPress's reserved `s`) so submitting the filter
+		// does not trigger `is_search()` and the main blog/search loop on `index.php`.
+		$listing_search = '';
+		if (isset($_GET['listing_search'])) {
+			$listing_search = sanitize_text_field(wp_unslash($_GET['listing_search']));
+		}
+		?>
 		<form method="get" action="<?php echo esc_url(home_url('/')); ?>">
-			<label for="q"><?php esc_html_e('Keywords', 'antiques-marketplace'); ?></label>
-			<input id="q" type="search" name="s" value="<?php echo esc_attr(get_search_query()); ?>">
+			<label for="listing-search"><?php esc_html_e('Keywords', 'antiques-marketplace'); ?></label>
+			<input id="listing-search" type="search" name="listing_search" value="<?php echo esc_attr($listing_search); ?>" autocomplete="off">
 
 			<label for="min-price"><?php esc_html_e('Min price', 'antiques-marketplace'); ?></label>
 			<input id="min-price" type="number" min="0" step="1" name="min_price" value="<?php echo isset($_GET['min_price']) ? esc_attr(wp_unslash($_GET['min_price'])) : ''; ?>">
@@ -31,9 +39,10 @@ get_header();
 
 			<label for="sort"><?php esc_html_e('Sort by', 'antiques-marketplace'); ?></label>
 			<select id="sort" name="sort">
-				<option value="latest"><?php esc_html_e('Newest', 'antiques-marketplace'); ?></option>
-				<option value="low"><?php esc_html_e('Price: Low to High', 'antiques-marketplace'); ?></option>
-				<option value="high"><?php esc_html_e('Price: High to Low', 'antiques-marketplace'); ?></option>
+				<?php $selected_sort = isset($_GET['sort']) ? sanitize_text_field(wp_unslash($_GET['sort'])) : 'latest'; ?>
+				<option value="latest" <?php selected($selected_sort, 'latest'); ?>><?php esc_html_e('Newest', 'antiques-marketplace'); ?></option>
+				<option value="low" <?php selected($selected_sort, 'low'); ?>><?php esc_html_e('Price: Low to High', 'antiques-marketplace'); ?></option>
+				<option value="high" <?php selected($selected_sort, 'high'); ?>><?php esc_html_e('Price: High to Low', 'antiques-marketplace'); ?></option>
 			</select>
 
 			<button class="btn" type="submit"><?php esc_html_e('Apply filters', 'antiques-marketplace'); ?></button>
@@ -49,14 +58,16 @@ get_header();
 	<section class="panel">
 		<?php
 		$sort         = isset($_GET['sort']) ? sanitize_text_field(wp_unslash($_GET['sort'])) : 'latest';
+		$min_price    = (isset($_GET['min_price']) && '' !== trim((string) wp_unslash($_GET['min_price']))) ? (float) wp_unslash($_GET['min_price']) : null;
+		$max_price    = (isset($_GET['max_price']) && '' !== trim((string) wp_unslash($_GET['max_price']))) ? (float) wp_unslash($_GET['max_price']) : null;
 		$current_page = isset($_GET['pg']) ? max(1, (int) wp_unslash($_GET['pg'])) : 1;
 		$per_page     = 12;
 
 		$external_listing_result = antiques_marketplace_get_external_products(
 			array(
-				'search'    => get_search_query(),
-				'min_price' => isset($_GET['min_price']) ? (float) wp_unslash($_GET['min_price']) : null,
-				'max_price' => isset($_GET['max_price']) ? (float) wp_unslash($_GET['max_price']) : null,
+				'search'    => $listing_search,
+				'min_price' => $min_price,
+				'max_price' => $max_price,
 				'sort'      => in_array($sort, array('latest', 'low', 'high'), true) ? $sort : 'latest',
 				'limit'     => $per_page,
 				'page'      => $current_page,
@@ -146,8 +157,8 @@ get_header();
 			<nav class="results-pagination" aria-label="<?php esc_attr_e('Product pagination', 'antiques-marketplace'); ?>">
 				<?php
 				$query_args = array();
-				if (isset($_GET['s']) && '' !== $_GET['s']) {
-					$query_args['s'] = sanitize_text_field(wp_unslash($_GET['s']));
+				if ('' !== $listing_search) {
+					$query_args['listing_search'] = $listing_search;
 				}
 				if (isset($_GET['min_price']) && '' !== $_GET['min_price']) {
 					$query_args['min_price'] = (string) wp_unslash($_GET['min_price']);

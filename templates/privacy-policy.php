@@ -76,8 +76,13 @@ if (!defined('ABSPATH')) {
 			<p>We may update this Privacy Policy from time to time. We will post the revised version on this page and update the &ldquo;Last updated&rdquo; date. For material changes, we may provide additional notice (e.g. a notice on the Site or email where appropriate).</p>
 
 			<h2>Contact us</h2>
-			<p><strong><?php echo esc_html(get_bloginfo('name')); ?></strong><br>
-				Email: <a href="mailto:<?php echo esc_attr(get_bloginfo('admin_email')); ?>"><?php echo esc_html(get_bloginfo('admin_email')); ?></a></p>
+			<p><strong>Legal Name:</strong> Akira Washiya | 鷲谷彬<br>
+				<strong>Company Name:</strong> 有限会社鳥海メディカルサービス<br>
+				<strong>Head of Operations:</strong> Akira Washiya<br>
+				<strong>Company Number (法人番号):</strong> 2060002006021<br>
+				<strong>Address:</strong> 栃木県宇都宮市一条３丁目２番２９号レオパレス２１－１０２号室<br>
+				<strong>Phone:</strong> <a href="tel:08012292520">080-1229-2520</a><br>
+				<strong>Email:</strong> <a href="mailto:<?php echo esc_attr(get_bloginfo('admin_email')); ?>"><?php echo esc_html(get_bloginfo('admin_email')); ?></a></p>
 		</div>
 	</div>
 </section>

@@ -205,6 +205,9 @@ fabric.properties
 .history
 .ionide
 
+# Theme secrets (copy from .env.example)
+.env
+
 ### WordPress ###
 # Core
 #

@@ -23,6 +23,12 @@ if (!defined('ABSPATH')) {
 			<h2>Seller / operator</h2>
 			<ul>
 				<li><strong>Site / brand name:</strong> <?php echo esc_html(get_bloginfo('name')); ?></li>
+				<li><strong>Legal Name:</strong> Akira Washiya | 鷲谷彬</li>
+				<li><strong>Company Name:</strong> 有限会社鳥海メディカルサービス</li>
+				<li><strong>Head of Operations:</strong> Akira Washiya</li>
+				<li><strong>Company Number (法人番号):</strong> 2060002006021</li>
+				<li><strong>Address:</strong> 栃木県宇都宮市一条３丁目２番２９号レオパレス２１－１０２号室</li>
+				<li><strong>Phone:</strong> <a href="tel:08012292520">080-1229-2520</a></li>
 				<li><strong>Description:</strong> Online antiques marketplace: listings, bids, and related information may be displayed from catalog data.</li>
 				<li><strong>Website:</strong> <?php echo esc_html(home_url('/')); ?></li>
 				<li><strong>Email:</strong> <a href="mailto:<?php echo esc_attr(get_bloginfo('admin_email')); ?>"><?php echo esc_html(get_bloginfo('admin_email')); ?></a></li>

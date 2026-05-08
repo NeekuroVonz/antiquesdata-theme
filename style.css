@@ -54,8 +54,38 @@ a {
   display: flex;
   gap: 0.75rem;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
   padding: 0.95rem 0;
+}
+
+.header-account {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  font-size: 0.92rem;
+}
+
+.header-account-user {
+  color: var(--muted);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-account-link {
+  color: #334155;
+  font-weight: 600;
+}
+
+.header-account-link:hover {
+  color: var(--brand);
+}
+
+.header-account-link--accent {
+  color: var(--brand);
 }
 
 .brand {
@@ -347,6 +377,61 @@ a {
   color: #334155;
   line-height: 1.75;
   margin: 0 0 0.8rem 0;
+}
+
+.auth-form label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.auth-form input[type="text"],
+.auth-form input[type="email"],
+.auth-form input[type="password"],
+.auth-form input[type="search"],
+.auth-form input[type="number"] {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 0.85rem;
+  font-size: 1rem;
+}
+
+.auth-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 1rem;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.auth-meta {
+  margin-top: 1rem;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.auth-notice {
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  margin: 0 0 1rem 0;
+}
+
+.auth-notice--error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.auth-notice--ok {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
 }
 
 /* Legal pages (justaskakira-style layout, theme-native) */
