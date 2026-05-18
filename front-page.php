@@ -60,7 +60,7 @@ $categories = antiques_marketplace_get_external_categories();
 							<option value=""><?php esc_html_e('All categories', 'antiques-marketplace'); ?></option>
 							<?php foreach ($categories as $category_name) : ?>
 								<option value="<?php echo esc_attr($category_name); ?>" <?php selected($filters['category'], $category_name); ?>>
-									<?php echo esc_html($category_name); ?>
+									<?php echo esc_html(antiques_marketplace_translate_for_locale($category_name)); ?>
 								</option>
 							<?php endforeach; ?>
 						</select>
@@ -155,10 +155,10 @@ $categories = antiques_marketplace_get_external_categories();
 			<?php
 			if (!empty($products)) :
 				foreach ($products as $product) :
-					$product_title   = isset($product['product_title']) ? (string) $product['product_title'] : '';
+					$product_title   = isset($product['product_title']) ? antiques_marketplace_translate_for_locale((string) $product['product_title']) : '';
 					$product_id      = isset($product['product_id']) ? (int) $product['product_id'] : 0;
 					$product_url     = $product_id > 0 ? antiques_marketplace_product_permalink($product_id) : '#';
-					$product_image   = !empty($product['product_image']) ? esc_url((string) $product['product_image']) : 'https://via.placeholder.com/640x420?text=No+Image';
+					$product_image   = !empty($product['product_image']) ? esc_url((string) $product['product_image']) : antiques_marketplace_no_image_url();
 					$product_created = !empty($product['product_created']) ? (string) $product['product_created'] : '';
 					$product_end     = !empty($product['product_end_time']) ? (string) $product['product_end_time'] : '';
 					$product_price   = isset($product['product_price']) && is_numeric($product['product_price']) ? number_format_i18n((float) $product['product_price'], 2) : null;
@@ -197,7 +197,7 @@ $categories = antiques_marketplace_get_external_categories();
 				<div class="panel-empty">
 					<p><?php esc_html_e('No external products found.', 'antiques-marketplace'); ?></p>
 					<?php if ($listing_error) : ?>
-						<p><?php echo esc_html(sprintf(__('Database error: %s', 'antiques-marketplace'), $listing_error)); ?></p>
+						<p><?php echo esc_html(sprintf(__('Database error: %s', 'antiques-marketplace'), antiques_marketplace_translate_for_locale($listing_error))); ?></p>
 					<?php elseif ($product_table) : ?>
 						<p><?php echo esc_html(sprintf(__('Connected to table: %s', 'antiques-marketplace'), $product_table)); ?></p>
 					<?php endif; ?>

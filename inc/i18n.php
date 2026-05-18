@@ -96,76 +96,50 @@ function antiques_marketplace_ja_translations() {
 	if (null !== $map) {
 		return $map;
 	}
-	$map = array(
-		'Account'                         => 'アカウント',
-		'Subscribe'                       => '購読',
-		'Log out'                         => 'ログアウト',
-		'Log in'                          => 'ログイン',
-		'Register'                        => '新規登録',
-		'Home'                            => 'ホーム',
-		'Bid, buy, and discover rare antiques' => '希少な骨董品を入札・購入・発見',
-		'A marketplace-style homepage inspired by eBay. Publish listings as posts and start selling.' => 'eBay風のマーケットプレイス。出品して販売を始めましょう。',
-		'Filter listings'                 => '出品を絞り込む',
-		'Keywords'                        => 'キーワード',
-		'Min price'                       => '最低価格',
-		'Max price'                       => '最高価格',
-		'Sort by'                         => '並び替え',
-		'Newest'                          => '新着順',
-		'Price: Low to High'              => '価格：安い順',
-		'Price: High to Low'              => '価格：高い順',
-		'Ending soon'                     => '終了間近',
-		'Apply filters'                   => 'フィルターを適用',
-		'Clear filters'                   => 'フィルターをクリア',
-		'Listing status'                  => '出品ステータス',
-		'All listings'                    => 'すべて',
-		'Active auctions'                 => '開催中',
-		'Ended auctions'                  => '終了済み',
-		'Ends within'                     => '終了まで',
-		'Any time'                        => '指定なし',
-		'24 hours'                        => '24時間以内',
-		'3 days'                          => '3日以内',
-		'7 days'                          => '7日以内',
-		'Category'                        => 'カテゴリー',
-		'All categories'                  => 'すべてのカテゴリー',
-		'Only with price'                 => '価格ありのみ',
-		'Per page'                        => '表示件数',
-		'Featured listings'             => '注目の出品',
-		'Showing %1$d-%2$d of %3$d products' => '%3$d件中 %1$d–%2$d件を表示',
-		'CURRENT BID'                     => '現在の入札',
-		'Bid not available'               => '入札情報なし',
-		'No external products found.'     => '商品が見つかりませんでした。',
-		'Database error: %s'              => 'データベースエラー: %s',
-		'Connected to table: %s'          => '接続テーブル: %s',
-		'Product pagination'              => 'ページ送り',
-		'Prev'                            => '前へ',
-		'Next'                            => '次へ',
-		'Time not available'              => '時間情報なし',
-		'Ended'                           => '終了',
-		'%1$d day %2$d hr left'           => '残り %1$d日 %2$d時間',
-		'%1$d days %2$d hrs left'         => '残り %1$d日 %2$d時間',
-		'%1$d hrs %2$d mins left'       => '残り %1$d時間 %2$d分',
-		'%d mins left'                    => '残り %d分',
-		'English'                         => 'English',
-		'Japanese'                        => '日本語',
-		'Language'                        => '言語',
-		'Create account'                  => 'アカウント作成',
-		'Remember me'                     => 'ログイン状態を保持',
-		'Lost your password?'             => 'パスワードをお忘れですか？',
-		'Already have an account? Log in' => 'アカウントをお持ちですか？ログイン',
-		'Username'                        => 'ユーザー名',
-		'Email'                           => 'メールアドレス',
-		'Password'                        => 'パスワード',
-		'Confirm password'                => 'パスワード（確認）',
-		'Pay %s with Stripe'              => 'Stripeで %s を支払う',
-		'Browse listings'                 => '出品を見る',
-		'Refine your search'              => '検索条件を絞り込む',
-		'Search'                          => '検索',
-		'Auction'                         => 'オークション',
-		'Price'                           => '価格',
-		'Display'                         => '表示',
-		'Search titles…'                  => 'タイトルで検索…',
-	);
+	$file = get_template_directory() . '/inc/translations/ja.php';
+	$map  = is_readable($file) ? require $file : array();
+	if (!is_array($map)) {
+		$map = array();
+	}
+	$legal_file = get_template_directory() . '/inc/translations/ja-legal.php';
+	if (is_readable($legal_file)) {
+		$legal = require $legal_file;
+		if (is_array($legal)) {
+			$map = array_merge($map, $legal);
+		}
+	}
 	return $map;
+}
+
+/**
+ * Translate a string for the active language.
+ *
+ * @param string $text English msgid.
+ * @return string
+ */
+function antiques_marketplace_t( $text ) {
+	$text = (string) $text;
+	if ('ja' !== antiques_marketplace_get_lang()) {
+		return $text;
+	}
+	$map = antiques_marketplace_ja_translations();
+	if (isset($map[ $text ])) {
+		return $map[ $text ];
+	}
+	// Fallback: translate any remaining English UI string (cached via translate API).
+	if (preg_match('/[A-Za-z]/', $text) && strlen($text) <= 500) {
+		return antiques_marketplace_translate_text($text, 'ja');
+	}
+	return $text;
+}
+
+/**
+ * Echo escaped translated string.
+ *
+ * @param string $text English msgid.
+ */
+function antiques_marketplace_te( $text ) {
+	echo esc_html(antiques_marketplace_t($text));
 }
 
 /**
@@ -180,10 +154,9 @@ function antiques_marketplace_gettext_ja( $translated, $text, $domain ) {
 	if ('antiques-marketplace' !== $domain || 'ja' !== antiques_marketplace_get_lang()) {
 		return $translated;
 	}
-	$map = antiques_marketplace_ja_translations();
-	return isset($map[$text]) ? $map[$text] : $translated;
+	return antiques_marketplace_t($text);
 }
-add_filter('gettext', 'antiques_marketplace_gettext_ja', 10, 3);
+add_filter('gettext', 'antiques_marketplace_gettext_ja', 20, 3);
 
 /**
  * Plural forms for Japanese.
@@ -199,14 +172,108 @@ function antiques_marketplace_ngettext_ja( $translated, $single, $plural, $numbe
 	if ('antiques-marketplace' !== $domain || 'ja' !== antiques_marketplace_get_lang()) {
 		return $translated;
 	}
-	$map = antiques_marketplace_ja_translations();
 	$key = (1 === (int) $number) ? $single : $plural;
-	if (isset($map[$key])) {
-		return $map[$key];
+	$try = antiques_marketplace_t($key);
+	if ($try !== $key) {
+		return $try;
 	}
-	if (isset($map[$single])) {
-		return $map[$single];
-	}
-	return $translated;
+	return antiques_marketplace_t($single);
 }
-add_filter('ngettext', 'antiques_marketplace_ngettext_ja', 10, 5);
+add_filter('ngettext', 'antiques_marketplace_ngettext_ja', 20, 5);
+
+/**
+ * Load legal page body template for current language.
+ *
+ * @param string $page One of privacy, terms, commerce.
+ */
+function antiques_marketplace_render_legal_body( $page ) {
+	$lang = 'ja' === antiques_marketplace_get_lang() ? 'ja' : 'en';
+	$slug = sanitize_key($page);
+	get_template_part('template-parts/legal/' . $slug, $lang);
+}
+
+/**
+ * English msgids for WordPress page slugs (browser title, etc.).
+ *
+ * @return array<string, string>
+ */
+function antiques_marketplace_page_title_msgids() {
+	return array(
+		'login'               => 'Log in',
+		'register'            => 'Create account',
+		'subscribe'           => 'Subscribe',
+		'privacy-policy'      => 'Privacy Policy',
+		'terms-of-service'    => 'Terms of Service',
+		'commerce-disclosure' => 'Commerce disclosure',
+	);
+}
+
+/**
+ * Localized title for a theme page slug.
+ *
+ * @param string $slug Page slug.
+ * @return string
+ */
+function antiques_marketplace_page_title( $slug ) {
+	$map = antiques_marketplace_page_title_msgids();
+	$msgid = isset($map[ $slug ]) ? $map[ $slug ] : '';
+	if ('' === $msgid) {
+		return '';
+	}
+	return antiques_marketplace_t($msgid);
+}
+
+/**
+ * Translate document title parts for theme pages and products.
+ *
+ * @param array<string, string> $title Title parts.
+ * @return array<string, string>
+ */
+function antiques_marketplace_filter_document_title( $title ) {
+	$product_id = absint(get_query_var('antiques_product_id'));
+	if ($product_id > 0) {
+		$result = antiques_marketplace_get_external_product_by_id($product_id);
+		if (!empty($result['product']['product_title'])) {
+			$title['title'] = antiques_marketplace_translate_for_locale((string) $result['product']['product_title']);
+		}
+		return $title;
+	}
+
+	if (!is_page()) {
+		return $title;
+	}
+
+	$post = get_queried_object();
+	if (!$post instanceof WP_Post) {
+		return $title;
+	}
+
+	$localized = antiques_marketplace_page_title($post->post_name);
+	if ('' !== $localized) {
+		$title['title'] = $localized;
+	}
+
+	return $title;
+}
+add_filter('document_title_parts', 'antiques_marketplace_filter_document_title', 20);
+
+/**
+ * Localize visible page titles when templates use the_title().
+ *
+ * @param string $title Post title.
+ * @return string
+ */
+function antiques_marketplace_filter_the_title( $title ) {
+	if (!is_page() || is_admin()) {
+		return $title;
+	}
+
+	$post = get_queried_object();
+	if (!$post instanceof WP_Post) {
+		return $title;
+	}
+
+	$localized = antiques_marketplace_page_title($post->post_name);
+	return '' !== $localized ? $localized : $title;
+}
+add_filter('the_title', 'antiques_marketplace_filter_the_title', 20);

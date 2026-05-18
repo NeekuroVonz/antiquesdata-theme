@@ -24,11 +24,11 @@ get_header();
 <section class="panel product-detail-panel" style="margin-top: 1rem;">
 	<?php if (!$product) : ?>
 		<h1><?php esc_html_e('Product not found', 'antiques-marketplace'); ?></h1>
-		<p><?php echo esc_html($error ? $error : __('This product is unavailable.', 'antiques-marketplace')); ?></p>
+		<p><?php echo esc_html($error ? antiques_marketplace_translate_for_locale($error) : __('This product is unavailable.', 'antiques-marketplace')); ?></p>
 		<p><a class="btn" href="<?php echo esc_url(home_url('/')); ?>"><?php esc_html_e('Back to listings', 'antiques-marketplace'); ?></a></p>
 	<?php else : ?>
 		<?php
-		$title          = isset($product['product_title']) ? (string) $product['product_title'] : '';
+		$title          = isset($product['product_title']) ? antiques_marketplace_translate_for_locale((string) $product['product_title']) : '';
 		$description    = isset($product['product_description']) ? (string) $product['product_description'] : '';
 		$product_detail = isset($product['product_detail']) ? (string) $product['product_detail'] : '';
 		$image          = isset($product['product_image']) ? (string) $product['product_image'] : '';
@@ -57,7 +57,7 @@ get_header();
 			array_unshift($gallery_images, $image);
 		}
 		if (empty($image)) {
-			$image = 'https://via.placeholder.com/1024x640?text=No+Image';
+			$image = antiques_marketplace_no_image_url(1024, 640);
 		}
 		$details = antiques_marketplace_parse_product_details($description);
 		$details = array_values(
@@ -69,8 +69,8 @@ get_header();
 			)
 		);
 		$details_source         = trim($product_detail) !== '' ? $product_detail : $description;
-		$translated_details_txt = antiques_marketplace_translate_to_english($details_source);
-		$translated_description = antiques_marketplace_translate_to_english($description);
+		$translated_details_txt = antiques_marketplace_translate_for_locale($details_source);
+		$translated_description = antiques_marketplace_translate_for_locale($description);
 		?>
 		<div class="product-detail-grid">
 			<div class="product-detail-image-wrap" data-product-gallery>

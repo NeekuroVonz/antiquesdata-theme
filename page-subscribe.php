@@ -64,7 +64,7 @@ $full_bypass   = antiques_marketplace_bypass_membership();
 				$checkout_error = antiques_marketplace_pop_checkout_error();
 				if ('' !== $checkout_error) :
 					?>
-					<p class="auth-notice auth-notice--error" role="alert"><?php echo esc_html($checkout_error); ?></p>
+					<p class="auth-notice auth-notice--error" role="alert"><?php echo esc_html(antiques_marketplace_translate_for_locale($checkout_error)); ?></p>
 				<?php endif; ?>
 			<?php endif; ?>
 		<?php endif; ?>

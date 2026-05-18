@@ -680,30 +680,39 @@ function antiques_marketplace_format_time_left( $end_time ) {
 }
 
 /**
- * Translate text to English with transient caching.
+ * Translate text for a target UI language (cached).
  *
- * @param string $text Source text.
+ * @param string      $text        Source text.
+ * @param string|null $target_lang "en" or "ja"; defaults to active UI language.
  * @return string
  */
-function antiques_marketplace_translate_to_english( $text ) {
+function antiques_marketplace_translate_text( $text, $target_lang = null ) {
 	$text = trim((string) $text);
 	if ('' === $text) {
 		return '';
 	}
 
-	// Skip remote translation for plain short ASCII labels.
-	if (strlen($text) < 80 && !preg_match('/[^\x00-\x7F]/', $text)) {
+	if (null === $target_lang) {
+		$target_lang = antiques_marketplace_get_lang();
+	}
+	$target_lang = 'ja' === $target_lang ? 'ja' : 'en';
+
+	if ('ja' === $target_lang && preg_match('/[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}]/u', $text)) {
 		return $text;
 	}
 
-	$cache_key = 'ant_tx_' . md5($text);
+	if ('en' === $target_lang && strlen($text) < 80 && !preg_match('/[^\x00-\x7F]/', $text)) {
+		return $text;
+	}
+
+	$cache_key = 'ant_tx_' . $target_lang . '_' . md5($text);
 	$cached    = get_transient($cache_key);
 	if (false !== $cached && is_string($cached)) {
 		return $cached;
 	}
 
 	$response = wp_remote_get(
-		'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=' . rawurlencode($text),
+		'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=' . rawurlencode($target_lang) . '&dt=t&q=' . rawurlencode($text),
 		array(
 			'timeout' => 8,
 		)
@@ -740,6 +749,36 @@ function antiques_marketplace_translate_to_english( $text ) {
 }
 
 /**
+ * Translate text to English with transient caching.
+ *
+ * @param string $text Source text.
+ * @return string
+ */
+function antiques_marketplace_translate_to_english( $text ) {
+	return antiques_marketplace_translate_text($text, 'en');
+}
+
+/**
+ * Translate catalog text for the active UI language.
+ *
+ * @param string $text Source text.
+ * @return string
+ */
+function antiques_marketplace_translate_for_locale( $text ) {
+	return antiques_marketplace_translate_text($text, antiques_marketplace_get_lang());
+}
+
+/**
+ * Placeholder image URL when a listing has no image.
+ *
+ * @return string
+ */
+function antiques_marketplace_no_image_url( $width = 640, $height = 420 ) {
+	$label = rawurlencode(__('No image', 'antiques-marketplace'));
+	return 'https://via.placeholder.com/' . absint($width) . 'x' . absint($height) . '?text=' . $label;
+}
+
+/**
  * Parse details from raw description-like text.
  *
  * @param string $raw_text Raw details text.
@@ -772,8 +811,8 @@ function antiques_marketplace_parse_product_details( $raw_text ) {
 		}
 
 		$details[] = array(
-			'label' => antiques_marketplace_translate_to_english($label),
-			'value' => antiques_marketplace_translate_to_english($value),
+			'label' => antiques_marketplace_translate_for_locale($label),
+			'value' => antiques_marketplace_translate_for_locale($value),
 		);
 	}
 

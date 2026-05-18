@@ -443,6 +443,7 @@ function antiques_marketplace_handle_start_checkout() {
 
 	$flat_body = array(
 		'mode'                                     => 'payment',
+		'locale'                                   => 'ja' === antiques_marketplace_get_lang() ? 'ja' : 'en',
 		'client_reference_id'                      => (string) $user_id,
 		'success_url'                              => $success_url,
 		'cancel_url'                               => $cancel_url,
