@@ -7,6 +7,8 @@
 if (!defined('ABSPATH')) {
 	exit;
 }
+
+$current_lang = antiques_marketplace_get_lang();
 ?><!doctype html>
 <html <?php language_attributes(); ?>>
 <head>
@@ -24,33 +26,35 @@ if (!defined('ABSPATH')) {
 		</a>
 		<nav class="header-account" aria-label="<?php esc_attr_e('Account', 'antiques-marketplace'); ?>">
 			<?php if (is_user_logged_in()) : ?>
-				<?php
-				$logout_url = wp_nonce_url(
-					admin_url('admin-post.php?action=antiques_theme_logout'),
-					'antiques-logout',
-					'antiques_logout_nonce'
-				);
-				?>
-				<?php if (! antiques_marketplace_user_has_membership() && ! antiques_marketplace_bypass_membership()) : ?>
-					<a class="header-account-link header-account-link--accent" href="<?php echo esc_url(antiques_marketplace_page_link('subscribe')); ?>"><?php esc_html_e('Subscribe', 'antiques-marketplace'); ?></a>
-				<?php endif; ?>
-				<?php
-				$current     = wp_get_current_user();
-				$label_name  = $current->display_name ? $current->display_name : $current->user_login;
-				?>
-				<span class="header-account-user"><?php echo esc_html($label_name); ?></span>
-				<a class="header-account-link" href="<?php echo esc_url($logout_url); ?>"><?php esc_html_e('Log out', 'antiques-marketplace'); ?></a>
-			<?php else : ?>
-				<a class="header-account-link" href="<?php echo esc_url(antiques_marketplace_page_link('login')); ?>"><?php esc_html_e('Log in', 'antiques-marketplace'); ?></a>
-				<a class="header-account-link header-account-link--accent" href="<?php echo esc_url(antiques_marketplace_page_link('register')); ?>"><?php esc_html_e('Register', 'antiques-marketplace'); ?></a>
+					<?php
+					$logout_url = wp_nonce_url(
+						admin_url('admin-post.php?action=antiques_theme_logout'),
+						'antiques-logout',
+						'antiques_logout_nonce'
+					);
+					$current    = wp_get_current_user();
+					$label_name = $current->display_name ? $current->display_name : $current->user_login;
+					?>
+					<?php if (! antiques_marketplace_user_has_membership() && ! antiques_marketplace_bypass_membership()) : ?>
+						<a class="header-account-link header-account-link--accent" href="<?php echo esc_url(antiques_marketplace_page_link('subscribe')); ?>"><?php esc_html_e('Subscribe', 'antiques-marketplace'); ?></a>
+					<?php endif; ?>
+					<span class="header-account-user"><?php echo esc_html($label_name); ?></span>
+					<a class="header-account-link" href="<?php echo esc_url($logout_url); ?>"><?php esc_html_e('Log out', 'antiques-marketplace'); ?></a>
+				<?php else : ?>
+					<a class="header-account-link" href="<?php echo esc_url(antiques_marketplace_page_link('login')); ?>"><?php esc_html_e('Log in', 'antiques-marketplace'); ?></a>
+					<a class="header-account-link header-account-link--accent" href="<?php echo esc_url(antiques_marketplace_page_link('register')); ?>"><?php esc_html_e('Register', 'antiques-marketplace'); ?></a>
 			<?php endif; ?>
 		</nav>
 	</div>
 </header>
 
 <nav class="category-nav">
-	<div class="container">
-		<a href="<?php echo esc_url(home_url('/')); ?>"><?php esc_html_e('Home', 'antiques-marketplace'); ?></a>
+	<div class="container category-nav-inner">
+		<a class="category-nav-home" href="<?php echo esc_url(home_url('/')); ?>"><?php esc_html_e('Home', 'antiques-marketplace'); ?></a>
+		<div class="lang-switcher" role="navigation" aria-label="<?php esc_attr_e('Language', 'antiques-marketplace'); ?>">
+			<a class="lang-switcher-link <?php echo 'en' === $current_lang ? 'is-active' : ''; ?>" href="<?php echo esc_url(antiques_marketplace_lang_switch_url('en')); ?>"><?php esc_html_e('English', 'antiques-marketplace'); ?></a>
+			<a class="lang-switcher-link <?php echo 'ja' === $current_lang ? 'is-active' : ''; ?>" href="<?php echo esc_url(antiques_marketplace_lang_switch_url('ja')); ?>"><?php esc_html_e('Japanese', 'antiques-marketplace'); ?></a>
+		</div>
 	</div>
 </nav>
 
