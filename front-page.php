@@ -39,9 +39,9 @@ $categories = antiques_marketplace_get_external_categories();
 				<div class="filter-field">
 					<label for="listing-status"><?php esc_html_e('Listing status', 'antiques-marketplace'); ?></label>
 					<select id="listing-status" name="listing_status">
-						<option value="all" <?php selected($filters['listing_status'], 'all'); ?>><?php esc_html_e('All listings', 'antiques-marketplace'); ?></option>
+						<option value="ended" <?php selected($filters['listing_status'], 'ended'); ?>><?php esc_html_e('Ended auctions (sold)', 'antiques-marketplace'); ?></option>
 						<option value="active" <?php selected($filters['listing_status'], 'active'); ?>><?php esc_html_e('Active auctions', 'antiques-marketplace'); ?></option>
-						<option value="ended" <?php selected($filters['listing_status'], 'ended'); ?>><?php esc_html_e('Ended auctions', 'antiques-marketplace'); ?></option>
+						<option value="all" <?php selected($filters['listing_status'], 'all'); ?>><?php esc_html_e('All listings', 'antiques-marketplace'); ?></option>
 					</select>
 				</div>
 				<div class="filter-field">
@@ -134,8 +134,17 @@ $categories = antiques_marketplace_get_external_categories();
 		$total_pages   = max(1, (int) ceil($total_results / $per_page));
 		$query_args    = antiques_marketplace_listing_filter_query_args($filters);
 		?>
+		<?php $sold_view = antiques_marketplace_is_sold_listing_view($filters); ?>
 		<div class="panel-heading">
-			<h3><?php esc_html_e('Featured listings', 'antiques-marketplace'); ?></h3>
+			<h3>
+				<?php
+				if ($sold_view) {
+					esc_html_e('Past sales', 'antiques-marketplace');
+				} else {
+					esc_html_e('Featured listings', 'antiques-marketplace');
+				}
+				?>
+			</h3>
 			<?php if (!empty($products)) : ?>
 				<p class="results-meta">
 					<?php
@@ -174,7 +183,15 @@ $categories = antiques_marketplace_get_external_categories();
 									<?php echo esc_html($product_title); ?>
 								</a>
 							</h4>
-							<div class="price-label"><?php esc_html_e('CURRENT BID', 'antiques-marketplace'); ?></div>
+							<div class="price-label">
+								<?php
+								if ($sold_view) {
+									esc_html_e('Sold price', 'antiques-marketplace');
+								} else {
+									esc_html_e('CURRENT BID', 'antiques-marketplace');
+								}
+								?>
+							</div>
 							<div class="price">
 								<?php
 								if ($product_price) {

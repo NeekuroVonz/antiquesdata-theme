@@ -94,7 +94,22 @@ get_header();
 			</div>
 			<div class="product-detail-info">
 				<h1 class="product-detail-title"><?php echo esc_html($title); ?></h1>
-				<div class="price-label"><?php esc_html_e('CURRENT BID', 'antiques-marketplace'); ?></div>
+				<?php
+				$show_sold_price = false;
+				if (!empty($end_time)) {
+					$end_ts = strtotime($end_time);
+					$show_sold_price = false !== $end_ts && $end_ts < current_time('timestamp');
+				}
+				?>
+				<div class="price-label">
+					<?php
+					if ($show_sold_price) {
+						esc_html_e('Sold price', 'antiques-marketplace');
+					} else {
+						esc_html_e('CURRENT BID', 'antiques-marketplace');
+					}
+					?>
+				</div>
 				<div class="product-detail-price">
 					<?php echo esc_html($price_formatted ? '$' . $price_formatted : __('Bid not available', 'antiques-marketplace')); ?>
 				</div>
