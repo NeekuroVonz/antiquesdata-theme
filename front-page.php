@@ -53,6 +53,16 @@ $categories = antiques_marketplace_get_external_categories();
 						<option value="168" <?php selected((int) $filters['ending_within'], 168); ?>><?php esc_html_e('7 days', 'antiques-marketplace'); ?></option>
 					</select>
 				</div>
+				<div class="filter-field">
+					<label for="sold-within"><?php esc_html_e('Sold within', 'antiques-marketplace'); ?></label>
+					<select id="sold-within" name="sold_within">
+						<option value="0" <?php selected((int) $filters['sold_within'], 0); ?>><?php esc_html_e('Any period', 'antiques-marketplace'); ?></option>
+						<option value="7" <?php selected((int) $filters['sold_within'], 7); ?>><?php esc_html_e('1 week', 'antiques-marketplace'); ?></option>
+						<option value="30" <?php selected((int) $filters['sold_within'], 30); ?>><?php esc_html_e('1 month', 'antiques-marketplace'); ?></option>
+						<option value="90" <?php selected((int) $filters['sold_within'], 90); ?>><?php esc_html_e('3 months', 'antiques-marketplace'); ?></option>
+						<option value="365" <?php selected((int) $filters['sold_within'], 365); ?>><?php esc_html_e('1 year', 'antiques-marketplace'); ?></option>
+					</select>
+				</div>
 				<?php if (!empty($categories)) : ?>
 					<div class="filter-field">
 						<label for="category"><?php esc_html_e('Category', 'antiques-marketplace'); ?></label>
@@ -92,9 +102,12 @@ $categories = antiques_marketplace_get_external_categories();
 					<label for="sort"><?php esc_html_e('Sort by', 'antiques-marketplace'); ?></label>
 					<select id="sort" name="sort">
 						<option value="latest" <?php selected($filters['sort'], 'latest'); ?>><?php esc_html_e('Newest', 'antiques-marketplace'); ?></option>
-						<option value="ending" <?php selected($filters['sort'], 'ending'); ?>><?php esc_html_e('Ending soon', 'antiques-marketplace'); ?></option>
-						<option value="low" <?php selected($filters['sort'], 'low'); ?>><?php esc_html_e('Price: Low to High', 'antiques-marketplace'); ?></option>
-						<option value="high" <?php selected($filters['sort'], 'high'); ?>><?php esc_html_e('Price: High to Low', 'antiques-marketplace'); ?></option>
+						<option value="price_high" <?php selected($filters['sort'], 'price_high'); ?>><?php esc_html_e('Winning price: High to Low', 'antiques-marketplace'); ?></option>
+						<option value="price_low" <?php selected($filters['sort'], 'price_low'); ?>><?php esc_html_e('Winning price: Low to High', 'antiques-marketplace'); ?></option>
+						<option value="bids_high" <?php selected($filters['sort'], 'bids_high'); ?>><?php esc_html_e('Bid count: Most to Fewest', 'antiques-marketplace'); ?></option>
+						<option value="bids_low" <?php selected($filters['sort'], 'bids_low'); ?>><?php esc_html_e('Bid count: Fewest to Most', 'antiques-marketplace'); ?></option>
+						<option value="end_asc" <?php selected($filters['sort'], 'end_asc'); ?>><?php esc_html_e('Auction end: Soonest first', 'antiques-marketplace'); ?></option>
+						<option value="end_desc" <?php selected($filters['sort'], 'end_desc'); ?>><?php esc_html_e('Auction end: Latest first', 'antiques-marketplace'); ?></option>
 					</select>
 				</div>
 				<div class="filter-field filter-field--last">
@@ -170,6 +183,7 @@ $categories = antiques_marketplace_get_external_categories();
 					$product_image   = !empty($product['product_image']) ? esc_url((string) $product['product_image']) : antiques_marketplace_no_image_url();
 					$product_created = !empty($product['product_created']) ? (string) $product['product_created'] : '';
 					$product_end     = !empty($product['product_end_time']) ? (string) $product['product_end_time'] : '';
+					$product_bids    = isset($product['product_bid_count']) && is_numeric($product['product_bid_count']) ? (int) $product['product_bid_count'] : null;
 					$product_price   = isset($product['product_price']) && is_numeric($product['product_price']) ? number_format_i18n((float) $product['product_price'], 2) : null;
 					$time_left       = antiques_marketplace_format_time_left($product_end);
 					?>
@@ -202,6 +216,11 @@ $categories = antiques_marketplace_get_external_categories();
 								?>
 							</div>
 							<div class="meta"><?php echo esc_html($time_left); ?></div>
+							<?php if (null !== $product_bids) : ?>
+								<div class="meta meta-secondary">
+									<?php echo esc_html(sprintf(__('Bids: %d', 'antiques-marketplace'), $product_bids)); ?>
+								</div>
+							<?php endif; ?>
 							<?php if ($product_created) : ?>
 								<div class="meta meta-secondary"><?php echo esc_html(wp_date(get_option('date_format'), strtotime($product_created))); ?></div>
 							<?php endif; ?>

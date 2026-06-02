@@ -217,10 +217,23 @@ function antiques_marketplace_parse_listing_filters() {
 		$status = 'ended';
 	}
 
-	$default_sort = 'ended' === $status ? 'high' : 'latest';
+	$default_sort = 'ended' === $status ? 'price_high' : 'latest';
 	$sort         = isset($_GET['sort']) ? sanitize_text_field(wp_unslash($_GET['sort'])) : $default_sort;
-	if (!in_array($sort, array('latest', 'low', 'high', 'ending'), true)) {
+	$legacy_sort_map = array(
+		'low'    => 'price_low',
+		'high'   => 'price_high',
+		'ending' => 'end_asc',
+	);
+	if (isset($legacy_sort_map[ $sort ])) {
+		$sort = $legacy_sort_map[ $sort ];
+	}
+	if (!in_array($sort, array('latest', 'price_low', 'price_high', 'bids_high', 'bids_low', 'end_asc', 'end_desc'), true)) {
 		$sort = $default_sort;
+	}
+
+	$sold_within_days = isset($_GET['sold_within']) ? (int) wp_unslash($_GET['sold_within']) : 0;
+	if (!in_array($sold_within_days, array(0, 7, 30, 90, 365), true)) {
+		$sold_within_days = 0;
 	}
 
 	$ending_within = isset($_GET['ending_within']) ? (int) wp_unslash($_GET['ending_within']) : 0;
@@ -259,6 +272,7 @@ function antiques_marketplace_parse_listing_filters() {
 		'page'           => isset($_GET['pg']) ? max(1, (int) wp_unslash($_GET['pg'])) : 1,
 		'listing_status' => $status,
 		'ending_within'  => $ending_within,
+		'sold_within'    => $sold_within_days,
 		'category'       => $category,
 		'has_price'      => !empty($_GET['has_price']),
 		'dedupe'         => !isset($_GET['dedupe']) || '0' !== (string) wp_unslash($_GET['dedupe']),
@@ -282,7 +296,7 @@ function antiques_marketplace_listing_filter_query_args( $filters ) {
 	if (null !== $filters['max_price']) {
 		$query['max_price'] = (string) $filters['max_price'];
 	}
-	$default_sort = 'ended' === ($filters['listing_status'] ?? 'ended') ? 'high' : 'latest';
+	$default_sort = 'ended' === ($filters['listing_status'] ?? 'ended') ? 'price_high' : 'latest';
 	if (!empty($filters['sort']) && $default_sort !== $filters['sort']) {
 		$query['sort'] = (string) $filters['sort'];
 	}
@@ -294,6 +308,9 @@ function antiques_marketplace_listing_filter_query_args( $filters ) {
 	}
 	if (!empty($filters['ending_within'])) {
 		$query['ending_within'] = (string) $filters['ending_within'];
+	}
+	if (!empty($filters['sold_within'])) {
+		$query['sold_within'] = (string) $filters['sold_within'];
 	}
 	if (!empty($filters['category'])) {
 		$query['category'] = (string) $filters['category'];
@@ -385,6 +402,17 @@ function antiques_marketplace_append_product_filters( $args, $resolved, $externa
 		$end_col = $resolved['end'];
 		$where_clauses[] = "`{$end_col}` IS NOT NULL AND `{$end_col}` <> '' AND `{$end_col}` >= NOW() AND `{$end_col}` <= DATE_ADD(NOW(), INTERVAL %d HOUR)";
 		$query_params[]  = $hours;
+	}
+
+	if (
+		'ended' === ($args['listing_status'] ?? '') &&
+		!empty($args['sold_within']) &&
+		$resolved['end']
+	) {
+		$days = (int) $args['sold_within'];
+		$end_col = $resolved['end'];
+		$where_clauses[] = "`{$end_col}` IS NOT NULL AND `{$end_col}` <> '' AND `{$end_col}` >= DATE_SUB(NOW(), INTERVAL %d DAY) AND `{$end_col}` <= NOW()";
+		$query_params[]  = $days;
 	}
 }
 
@@ -504,16 +532,29 @@ function antiques_marketplace_sort_products( array $products, $sort ) {
 		function( $a, $b ) use ( $sort ) {
 			$price_a = (float) ( $a['product_price'] ?? 0 );
 			$price_b = (float) ( $b['product_price'] ?? 0 );
-			if ('low' === $sort) {
+			$bids_a  = (int) ( $a['product_bid_count'] ?? 0 );
+			$bids_b  = (int) ( $b['product_bid_count'] ?? 0 );
+			if ('price_low' === $sort) {
 				return $price_a <=> $price_b;
 			}
-			if ('high' === $sort) {
+			if ('price_high' === $sort) {
 				return $price_b <=> $price_a;
 			}
-			if ('ending' === $sort) {
+			if ('bids_high' === $sort) {
+				return $bids_b <=> $bids_a;
+			}
+			if ('bids_low' === $sort) {
+				return $bids_a <=> $bids_b;
+			}
+			if ('end_asc' === $sort) {
 				$end_a = strtotime((string) ( $a['product_end_time'] ?? '' ));
 				$end_b = strtotime((string) ( $b['product_end_time'] ?? '' ));
 				return ( false === $end_a ? PHP_INT_MAX : $end_a ) <=> ( false === $end_b ? PHP_INT_MAX : $end_b );
+			}
+			if ('end_desc' === $sort) {
+				$end_a = strtotime((string) ( $a['product_end_time'] ?? '' ));
+				$end_b = strtotime((string) ( $b['product_end_time'] ?? '' ));
+				return ( false === $end_b ? 0 : $end_b ) <=> ( false === $end_a ? 0 : $end_a );
 			}
 			$created_a = strtotime((string) ( $a['product_created'] ?? '' ));
 			$created_b = strtotime((string) ( $b['product_created'] ?? '' ));
@@ -539,6 +580,7 @@ function antiques_marketplace_get_external_products( $args = array() ) {
 		'page'           => 1,
 		'listing_status' => 'ended',
 		'ending_within'  => 0,
+		'sold_within'    => 0,
 		'category'       => '',
 		'has_price'      => false,
 		'dedupe'         => true,
@@ -602,6 +644,7 @@ function antiques_marketplace_get_external_products( $args = array() ) {
 		'description' => array('product_description', 'description', 'detail', 'product_detail'),
 		'category'    => array('category', 'category_name', 'product_category', 'main_category'),
 		'price'       => array('price', 'current_price', 'amount', 'current_bid_amount', 'buy_now_price', 'min_bid_amount'),
+		'bid_count'   => array('bid_count', 'bids', 'number_of_bids', 'total_bids'),
 		'image'       => array('image_url', 'image', 'thumbnail', 'photo_url', 'thumb_image', 'original_image'),
 		'url'         => array('product_url', 'url', 'permalink', 'link'),
 		'created'     => array('created_at', 'created', 'date_created', 'published_at'),
@@ -650,6 +693,7 @@ function antiques_marketplace_get_external_products( $args = array() ) {
 
 	$id_column      = $resolved['id'] ? $resolved['id'] : $resolved['title'];
 	$price_expr   = $resolved['price'] ? "`{$resolved['price']}`" : 'NULL';
+	$bids_expr    = $resolved['bid_count'] ? "`{$resolved['bid_count']}`" : 'NULL';
 	$image_expr   = $resolved['image'] ? "`{$resolved['image']}`" : 'NULL';
 	$url_expr     = $resolved['url'] ? "`{$resolved['url']}`" : 'NULL';
 	$created_expr = $resolved['created'] ? "`{$resolved['created']}`" : 'NULL';
@@ -673,6 +717,7 @@ function antiques_marketplace_get_external_products( $args = array() ) {
 			`{$id_column}` AS product_id,
 			`{$resolved['title']}` AS product_title,
 			{$price_expr} AS product_price,
+			{$bids_expr} AS product_bid_count,
 			{$image_expr} AS product_image,
 			{$url_expr} AS product_url,
 			{$created_expr} AS product_created,
@@ -684,12 +729,18 @@ function antiques_marketplace_get_external_products( $args = array() ) {
 		$sql .= ' WHERE ' . implode(' AND ', $where_clauses);
 	}
 
-	if ('low' === $args['sort'] && $resolved['price']) {
+	if ('price_low' === $args['sort'] && $resolved['price']) {
 		$sql .= " ORDER BY `{$resolved['price']}` ASC";
-	} elseif ('high' === $args['sort'] && $resolved['price']) {
+	} elseif ('price_high' === $args['sort'] && $resolved['price']) {
 		$sql .= " ORDER BY `{$resolved['price']}` DESC";
-	} elseif ('ending' === $args['sort'] && $resolved['end']) {
+	} elseif ('bids_high' === $args['sort'] && $resolved['bid_count']) {
+		$sql .= " ORDER BY `{$resolved['bid_count']}` DESC";
+	} elseif ('bids_low' === $args['sort'] && $resolved['bid_count']) {
+		$sql .= " ORDER BY `{$resolved['bid_count']}` ASC";
+	} elseif ('end_asc' === $args['sort'] && $resolved['end']) {
 		$sql .= " ORDER BY `{$resolved['end']}` ASC";
+	} elseif ('end_desc' === $args['sort'] && $resolved['end']) {
+		$sql .= " ORDER BY `{$resolved['end']}` DESC";
 	} elseif ($resolved['created']) {
 		$sql .= " ORDER BY `{$resolved['created']}` DESC";
 	} elseif ($resolved['end']) {
@@ -718,6 +769,7 @@ function antiques_marketplace_get_external_products( $args = array() ) {
 
 	if (empty($products) && $used_status_filters && 'ended' !== $args['listing_status']) {
 		$fb_price   = $resolved['price'] ? "`{$resolved['price']}`" : 'NULL';
+		$fb_bids    = $resolved['bid_count'] ? "`{$resolved['bid_count']}`" : 'NULL';
 		$fb_image   = $resolved['image'] ? "`{$resolved['image']}`" : 'NULL';
 		$fb_url     = $resolved['url'] ? "`{$resolved['url']}`" : 'NULL';
 		$fb_created = $resolved['created'] ? "`{$resolved['created']}`" : 'NULL';
@@ -727,6 +779,7 @@ function antiques_marketplace_get_external_products( $args = array() ) {
 				`{$id_column}` AS product_id,
 				`{$resolved['title']}` AS product_title,
 				{$fb_price} AS product_price,
+				{$fb_bids} AS product_bid_count,
 				{$fb_image} AS product_image,
 				{$fb_url} AS product_url,
 				{$fb_created} AS product_created,
@@ -747,12 +800,18 @@ function antiques_marketplace_get_external_products( $args = array() ) {
 			$fallback_count_sql .= ' WHERE ' . implode(' AND ', $fallback_where);
 		}
 		$total_count = (int) $external_db->get_var($external_db->prepare($fallback_count_sql, $fallback_params));
-		if ('low' === $args['sort'] && $resolved['price']) {
+		if ('price_low' === $args['sort'] && $resolved['price']) {
 			$fallback_sql .= " ORDER BY `{$resolved['price']}` ASC";
-		} elseif ('high' === $args['sort'] && $resolved['price']) {
+		} elseif ('price_high' === $args['sort'] && $resolved['price']) {
 			$fallback_sql .= " ORDER BY `{$resolved['price']}` DESC";
-		} elseif ('ending' === $args['sort'] && $resolved['end']) {
+		} elseif ('bids_high' === $args['sort'] && $resolved['bid_count']) {
+			$fallback_sql .= " ORDER BY `{$resolved['bid_count']}` DESC";
+		} elseif ('bids_low' === $args['sort'] && $resolved['bid_count']) {
+			$fallback_sql .= " ORDER BY `{$resolved['bid_count']}` ASC";
+		} elseif ('end_asc' === $args['sort'] && $resolved['end']) {
 			$fallback_sql .= " ORDER BY `{$resolved['end']}` ASC";
+		} elseif ('end_desc' === $args['sort'] && $resolved['end']) {
+			$fallback_sql .= " ORDER BY `{$resolved['end']}` DESC";
 		} elseif ($resolved['created']) {
 			$fallback_sql .= " ORDER BY `{$resolved['created']}` DESC";
 		} else {
