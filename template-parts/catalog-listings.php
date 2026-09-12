@@ -192,7 +192,12 @@ $fx_caption = antiques_marketplace_exchange_rate_caption();
 					$product_title   = isset($product['product_title']) ? (string) $product['product_title'] : '';
 					$product_id      = isset($product['product_id']) ? (int) $product['product_id'] : 0;
 					$product_url     = $product_id > 0 ? antiques_marketplace_product_permalink($product_id) : '#';
-					$product_image   = !empty($product['product_image']) ? antiques_marketplace_listing_image_url((string) $product['product_image']) : antiques_marketplace_no_image_url();
+					$has_product_image = !empty($product['product_image']);
+					$product_image   = $has_product_image ? antiques_marketplace_listing_image_url((string) $product['product_image']) : antiques_marketplace_no_image_url();
+					$fallback_image  = antiques_marketplace_no_image_url();
+					$image_alt       = $has_product_image
+						? $product_title
+						: sprintf(__('Image unavailable for %s', 'antiques-marketplace'), $product_title);
 					$product_created = !empty($product['product_created']) ? (string) $product['product_created'] : '';
 					$product_end     = !empty($product['product_end_time']) ? (string) $product['product_end_time'] : '';
 					$product_bids    = isset($product['product_bid_count']) && is_numeric($product['product_bid_count']) ? (int) $product['product_bid_count'] : null;
@@ -204,8 +209,11 @@ $fx_caption = antiques_marketplace_exchange_rate_caption();
 					<article class="listing-card">
 						<a href="<?php echo esc_url($product_url); ?>">
 							<img
+								class="listing-card__image<?php echo $has_product_image ? '' : ' is-fallback-image'; ?>"
 								src="<?php echo esc_url($product_image); ?>"
-								alt="<?php echo esc_attr($product_title); ?>"
+								alt="<?php echo esc_attr($image_alt); ?>"
+								data-fallback-src="<?php echo esc_url($fallback_image); ?>"
+								data-fallback-alt="<?php echo esc_attr(sprintf(__('Image unavailable for %s', 'antiques-marketplace'), $product_title)); ?>"
 								width="320"
 								height="155"
 								decoding="async"

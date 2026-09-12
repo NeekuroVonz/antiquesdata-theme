@@ -49,7 +49,7 @@ function antiques_marketplace_assets() {
 		array(),
 		null
 	);
-	wp_enqueue_style('antiques-marketplace-style', get_stylesheet_uri(), array('antiques-fonts'), '1.2.5');
+	wp_enqueue_style('antiques-marketplace-style', get_stylesheet_uri(), array('antiques-fonts'), '1.3.1');
 	if (is_front_page()) {
 		wp_enqueue_style(
 			'antiques-landing',
@@ -62,7 +62,7 @@ function antiques_marketplace_assets() {
 		'antiques-marketplace-main',
 		get_template_directory_uri() . '/assets/js/main.js',
 		array(),
-		'1.2.3',
+		'1.2.12',
 		true
 	);
 	if (is_page('market-trends')) {
@@ -73,8 +73,48 @@ function antiques_marketplace_assets() {
 			antiques_marketplace_dashboard_front_data(is_array($dashboard_metrics) ? $dashboard_metrics : array())
 		);
 	}
+
+	$product_id = absint(get_query_var('antiques_product_id'));
+	if ($product_id > 0) {
+		wp_localize_script(
+			'antiques-marketplace-main',
+			'antiquesProductTranslate',
+			array(
+				'ajaxUrl'           => admin_url('admin-ajax.php'),
+				'nonce'             => wp_create_nonce('antiques_translate_product'),
+				'productId'         => $product_id,
+				'lang'              => antiques_marketplace_get_lang(),
+				'action'            => 'antiques_translate_product',
+				'statusTranslating' => __('Translating product text…', 'antiques-marketplace'),
+				'statusDone'        => __('Translated', 'antiques-marketplace'),
+				'statusError'       => __('Could not translate product text.', 'antiques-marketplace'),
+			)
+		);
+	}
 }
 add_action('wp_enqueue_scripts', 'antiques_marketplace_assets');
+
+/**
+ * Drop unused WooCommerce storefront scripts on catalog pages.
+ */
+function antiques_marketplace_dequeue_unused_woocommerce_assets() {
+	if (is_admin() || !function_exists('is_woocommerce')) {
+		return;
+	}
+	if (is_woocommerce() || is_cart() || is_checkout() || is_account_page()) {
+		return;
+	}
+
+	wp_dequeue_style('woocommerce-general');
+	wp_dequeue_style('woocommerce-layout');
+	wp_dequeue_style('woocommerce-smallscreen');
+	wp_dequeue_script('wc-add-to-cart');
+	wp_dequeue_script('woocommerce');
+	wp_dequeue_script('wc-cart-fragments');
+	wp_dequeue_script('wc-order-attribution');
+	wp_dequeue_script('sourcebuster-js');
+}
+add_action('wp_enqueue_scripts', 'antiques_marketplace_dequeue_unused_woocommerce_assets', 100);
 
 /**
  * Distinguish the public landing from gated app pages.
@@ -110,6 +150,7 @@ function antiques_marketplace_resource_hints( $urls, $relation_type ) {
 	);
 	if (!is_front_page()) {
 		$urls[] = 'https://assets.catawiki.com';
+		$urls[] = 'https://assets.catawiki.nl';
 	}
 	return $urls;
 }
@@ -493,13 +534,54 @@ function antiques_marketplace_format_time_left( $end_time ) {
 }
 
 /**
+ * Normalize typographic punctuation so Latin text is not sent to Translate.
+ *
+ * @param string $text Source text.
+ * @return string
+ */
+function antiques_marketplace_normalize_latin_punctuation( $text ) {
+	return strtr(
+		(string) $text,
+		array(
+			"\xC2\xA0"     => ' ',
+			"\xE2\x80\x93" => '-',
+			"\xE2\x80\x94" => '-',
+			"\xE2\x80\x98" => "'",
+			"\xE2\x80\x99" => "'",
+			"\xE2\x80\x9C" => '"',
+			"\xE2\x80\x9D" => '"',
+			'–'            => '-',
+			'—'            => '-',
+			'‘'            => "'",
+			'’'            => "'",
+			'“'            => '"',
+			'”'            => '"',
+		)
+	);
+}
+
+/**
+ * Whether text is effectively Latin/English after punctuation normalization.
+ * Allows Hepburn macrons (ū, ō, …) used in romanized Japanese titles.
+ *
+ * @param string $text Source text.
+ * @return bool
+ */
+function antiques_marketplace_is_latin_text( $text ) {
+	$normalized = antiques_marketplace_normalize_latin_punctuation($text);
+	$normalized = preg_replace('/[\x{00C0}-\x{024F}\x{1E00}-\x{1EFF}]/u', 'a', $normalized);
+	return is_string($normalized) && !preg_match('/[^\x00-\x7F]/', $normalized);
+}
+
+/**
  * Translate text for a target UI language (cached).
  *
  * @param string      $text        Source text.
  * @param string|null $target_lang "en" or "ja"; defaults to active UI language.
+ * @param bool        $allow_long  Allow long product copy (async/background only).
  * @return string
  */
-function antiques_marketplace_translate_text( $text, $target_lang = null ) {
+function antiques_marketplace_translate_text( $text, $target_lang = null, $allow_long = false ) {
 	$text = trim((string) $text);
 	if ('' === $text) {
 		return '';
@@ -510,55 +592,520 @@ function antiques_marketplace_translate_text( $text, $target_lang = null ) {
 	}
 	$target_lang = 'ja' === $target_lang ? 'ja' : 'en';
 
-	if ('ja' === $target_lang && preg_match('/[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}]/u', $text)) {
+	if (!antiques_marketplace_text_needs_ui_translate($text, $target_lang)) {
+		if ('en' === $target_lang && antiques_marketplace_is_latin_text($text)) {
+			return antiques_marketplace_normalize_latin_punctuation($text);
+		}
 		return $text;
 	}
 
-	if ('en' === $target_lang && strlen($text) < 80 && !preg_match('/[^\x00-\x7F]/', $text)) {
+	if (antiques_marketplace_is_latin_text($text)) {
+		$text = antiques_marketplace_normalize_latin_punctuation($text);
+	}
+
+	// Keep the HTML request free of multi-kilobyte Translate calls.
+	if (!$allow_long && strlen($text) > 180) {
 		return $text;
 	}
 
-	$cache_key = 'ant_tx_' . $target_lang . '_' . md5($text);
+	if ($allow_long && strlen($text) > 1200) {
+		return antiques_marketplace_translate_text_chunked($text, $target_lang);
+	}
+
+	return antiques_marketplace_translate_text_request($text, $target_lang, $allow_long ? 8 : 1);
+}
+
+/**
+ * Split long product copy into Translate-safe chunks (UTF-8 aware).
+ *
+ * @param string $text Source text.
+ * @param int    $max  Max bytes per chunk.
+ * @return array<int, string>
+ */
+function antiques_marketplace_translate_chunks( $text, $max = 1100 ) {
+	$max   = max(200, (int) $max);
+	$lines = preg_split('/\r\n|\r|\n/', (string) $text);
+	if (!is_array($lines)) {
+		$lines = array( (string) $text );
+	}
+
+	$chunks  = array();
+	$current = '';
+	foreach ($lines as $line) {
+		$candidate = '' === $current ? $line : $current . "\n" . $line;
+		if (strlen($candidate) > $max && '' !== $current) {
+			$chunks[] = $current;
+			$current  = $line;
+			continue;
+		}
+		$current = $candidate;
+	}
+	if ('' !== $current) {
+		$chunks[] = $current;
+	}
+
+	$safe = array();
+	foreach ($chunks as $chunk) {
+		if (strlen($chunk) <= $max) {
+			$safe[] = $chunk;
+			continue;
+		}
+		$offset = 0;
+		$length = function_exists('mb_strlen') ? (int) mb_strlen($chunk, 'UTF-8') : strlen($chunk);
+		while ($offset < $length) {
+			$piece = function_exists('mb_substr')
+				? (string) mb_substr($chunk, $offset, 400, 'UTF-8')
+				: substr($chunk, $offset, $max);
+			if ('' === $piece) {
+				break;
+			}
+			$safe[]  = $piece;
+			$offset += function_exists('mb_strlen') ? (int) mb_strlen($piece, 'UTF-8') : strlen($piece);
+		}
+	}
+
+	return $safe;
+}
+
+/**
+ * Translate long product copy in chunks (async path only).
+ *
+ * @param string $text        Source text.
+ * @param string $target_lang Target language.
+ * @return string
+ */
+function antiques_marketplace_translate_text_chunked( $text, $target_lang ) {
+	$cache_key = 'ant_tx_long_' . $target_lang . '_' . md5($text);
 	$cached    = get_transient($cache_key);
 	if (false !== $cached && is_string($cached)) {
 		return $cached;
 	}
 
-	$response = wp_remote_get(
-		'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=' . rawurlencode($target_lang) . '&dt=t&q=' . rawurlencode($text),
+	$chunks      = antiques_marketplace_translate_chunks($text, 450);
+	$translated  = antiques_marketplace_translate_many($chunks, $target_lang);
+	$joined      = implode("\n", array_values($translated));
+	set_transient($cache_key, $joined, DAY_IN_SECONDS * 7);
+	return $joined;
+}
+
+/**
+ * Resolve source language for a Translate request.
+ *
+ * @param string $text        Source text.
+ * @param string $target_lang Target language.
+ * @return string
+ */
+function antiques_marketplace_translate_source_lang( $text, $target_lang ) {
+	$latin = antiques_marketplace_latin_letter_count($text);
+	$cjk   = antiques_marketplace_cjk_char_count($text);
+
+	if ('ja' === $target_lang && $latin >= 40) {
+		return 'en';
+	}
+	if ('en' === $target_lang && $cjk >= 8 && $latin < 48) {
+		return 'ja';
+	}
+	if (antiques_marketplace_is_latin_text($text)) {
+		return 'en';
+	}
+	return $cjk > 0 ? 'ja' : 'en';
+}
+
+/**
+ * Single Translate request (cached). Prefer batch via translate_many for product pages.
+ *
+ * @param string $text        Source text.
+ * @param string $target_lang Target language.
+ * @param int    $timeout     HTTP timeout seconds.
+ * @return string
+ */
+function antiques_marketplace_translate_text_request( $text, $target_lang, $timeout = 1 ) {
+	$batch = antiques_marketplace_translate_many(array( $text ), $target_lang, max(3, (int) $timeout));
+	return isset($batch[0]) ? (string) $batch[0] : $text;
+}
+
+/**
+ * Parallel Translate for many strings (cached per string).
+ *
+ * Primary: Google clients5. Fallback: MyMemory with site email for higher free quota.
+ *
+ * @param array<int|string, string> $texts       Source strings (keys preserved).
+ * @param string                    $target_lang Target language.
+ * @param int                       $timeout     Per-request timeout seconds.
+ * @return array<int|string, string>
+ */
+function antiques_marketplace_translate_many( array $texts, $target_lang, $timeout = 5 ) {
+	$target_lang = 'ja' === $target_lang ? 'ja' : 'en';
+	$timeout     = max(2, (int) $timeout);
+	$results     = array();
+	$pending     = array();
+
+	foreach ($texts as $key => $text) {
+		$text = trim((string) $text);
+		if ('' === $text) {
+			$results[ $key ] = '';
+			continue;
+		}
+
+		if (!antiques_marketplace_text_needs_ui_translate($text, $target_lang)) {
+			if ('en' === $target_lang && antiques_marketplace_is_latin_text($text)) {
+				$results[ $key ] = antiques_marketplace_normalize_latin_punctuation($text);
+			} else {
+				$results[ $key ] = $text;
+			}
+			continue;
+		}
+
+		$cache_key = 'ant_tx_v2_' . $target_lang . '_' . md5($text);
+		$cached    = get_transient($cache_key);
+		if (false !== $cached && is_string($cached)) {
+			$results[ $key ] = $cached;
+			continue;
+		}
+
+		$chunks = strlen($text) > 450 ? antiques_marketplace_translate_chunks($text, 450) : array( $text );
+		$chunks = antiques_marketplace_merge_tiny_translate_chunks($chunks, 100);
+		$pending[ $key ] = array(
+			'source' => $text,
+			'chunks' => $chunks,
+			'parts'  => array_fill(0, count($chunks), null),
+		);
+	}
+
+	$jobs = array();
+	foreach ($pending as $key => $item) {
+		$source_lang = antiques_marketplace_translate_source_lang($item['source'], $target_lang);
+		foreach ($item['chunks'] as $index => $chunk) {
+			$jobs[ $key . "\n" . $index ] = array(
+				'key'         => $key,
+				'index'       => $index,
+				'text'        => $chunk,
+				'source_lang' => $source_lang,
+			);
+		}
+	}
+
+	if (!empty($jobs)) {
+		$waves = array_chunk($jobs, 12, true);
+		foreach ($waves as $wave) {
+			$google_urls = array();
+			foreach ($wave as $job_id => $job) {
+				$google_urls[ $job_id ] = antiques_marketplace_google_clients5_url($job['text'], $job['source_lang'], $target_lang);
+			}
+
+			$bodies = antiques_marketplace_http_get_many($google_urls, $timeout);
+			$failed = array();
+			foreach ($wave as $job_id => $job) {
+				$body       = isset($bodies[ $job_id ]) ? $bodies[ $job_id ] : null;
+				$translated = antiques_marketplace_parse_google_clients5_body($body, $job['text'], $target_lang);
+				if (null !== $translated) {
+					$pending[ $job['key'] ]['parts'][ $job['index'] ] = $translated;
+				} else {
+					$failed[ $job_id ] = $job;
+				}
+			}
+
+			if (!empty($failed)) {
+				$memory_urls = array();
+				$email       = antiques_marketplace_env('ANTIQUES_MYMEMORY_EMAIL', 'translate@antiquedatajapan.com');
+				foreach ($failed as $job_id => $job) {
+					$query = array(
+						'q'        => $job['text'],
+						'langpair' => $job['source_lang'] . '|' . $target_lang,
+					);
+					if (is_email($email)) {
+						$query['de'] = $email;
+					}
+					$memory_urls[ $job_id ] = 'https://api.mymemory.translated.net/get?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+				}
+				$memory_bodies = antiques_marketplace_http_get_many($memory_urls, $timeout);
+				foreach ($failed as $job_id => $job) {
+					$body       = isset($memory_bodies[ $job_id ]) ? $memory_bodies[ $job_id ] : null;
+					$translated = antiques_marketplace_parse_mymemory_body($body, $job['text'], $target_lang);
+					$pending[ $job['key'] ]['parts'][ $job['index'] ] = null !== $translated ? $translated : $job['text'];
+				}
+			}
+		}
+	}
+
+	foreach ($pending as $key => $item) {
+		$joined = implode("\n", $item['parts']);
+		if (antiques_marketplace_translated_text_is_usable($item['source'], $joined, $target_lang)) {
+			set_transient('ant_tx_v2_' . $target_lang . '_' . md5($item['source']), $joined, DAY_IN_SECONDS * 7);
+			$results[ $key ] = $joined;
+		} else {
+			$results[ $key ] = $item['source'];
+		}
+	}
+
+	return $results;
+}
+
+/**
+ * Merge tiny Translate chunks into neighbors (avoids "ABOUT US:" alone).
+ *
+ * @param array<int, string> $chunks Chunks.
+ * @param int                $min    Minimum preferred chunk size.
+ * @return array<int, string>
+ */
+function antiques_marketplace_merge_tiny_translate_chunks( array $chunks, $min = 100 ) {
+	$min    = max(20, (int) $min);
+	$merged = array();
+	foreach ($chunks as $chunk) {
+		$chunk = (string) $chunk;
+		if (empty($merged)) {
+			$merged[] = $chunk;
+			continue;
+		}
+		$last_index = count($merged) - 1;
+		if (strlen($merged[ $last_index ]) < $min) {
+			$merged[ $last_index ] .= "\n" . $chunk;
+			continue;
+		}
+		$merged[] = $chunk;
+	}
+	return $merged;
+}
+
+/**
+ * Google Translate clients5 URL (works server-side; CORS-friendly).
+ *
+ * @param string $text        Source text.
+ * @param string $source_lang Source language.
+ * @param string $target_lang Target language.
+ * @return string
+ */
+function antiques_marketplace_google_clients5_url( $text, $source_lang, $target_lang ) {
+	return 'https://clients5.google.com/translate_a/t?' . http_build_query(
 		array(
-			'timeout' => 8,
+			'client' => 'dict-chrome-ex',
+			'sl'     => $source_lang ? $source_lang : 'auto',
+			'tl'     => $target_lang,
+			'q'      => $text,
+		),
+		'',
+		'&',
+		PHP_QUERY_RFC3986
+	);
+}
+
+/**
+ * Parse Google clients5 JSON body.
+ *
+ * @param string|null $body        Response body.
+ * @param string      $source      Source text.
+ * @param string      $target_lang Target language.
+ * @return string|null
+ */
+function antiques_marketplace_parse_google_clients5_body( $body, $source, $target_lang ) {
+	if (!is_string($body) || '' === $body || ('[' !== $body[0] && '{' !== $body[0])) {
+		return null;
+	}
+	$decoded = json_decode($body, true);
+	if (!is_array($decoded)) {
+		return null;
+	}
+
+	$translated = '';
+	if (isset($decoded[0]) && is_string($decoded[0])) {
+		$translated = $decoded[0];
+	} elseif (isset($decoded[0]) && is_array($decoded[0])) {
+		foreach ($decoded as $row) {
+			if (is_array($row) && isset($row[0]) && is_string($row[0])) {
+				$translated .= $row[0];
+			} elseif (is_string($row)) {
+				$translated .= $row;
+			}
+		}
+	}
+
+	$translated = trim($translated);
+	return antiques_marketplace_translated_text_is_usable($source, $translated, $target_lang) ? $translated : null;
+}
+
+/**
+ * Concurrent HTTP GETs (curl_multi when available).
+ *
+ * @param array<string, string> $url_by_key URL map.
+ * @param int                   $timeout   Timeout seconds.
+ * @return array<string, string|null>
+ */
+function antiques_marketplace_http_get_many( array $url_by_key, $timeout = 5 ) {
+	$timeout = max(2, (int) $timeout);
+	$bodies  = array();
+
+	if (empty($url_by_key)) {
+		return $bodies;
+	}
+
+	if (!function_exists('curl_multi_init')) {
+		foreach ($url_by_key as $key => $url) {
+			$response = wp_remote_get(
+				$url,
+				array(
+					'timeout'    => $timeout,
+					'user-agent' => 'AntiqueDataJapan/1.0',
+				)
+			);
+			$bodies[ $key ] = is_wp_error($response) ? null : (string) wp_remote_retrieve_body($response);
+		}
+		return $bodies;
+	}
+
+	$multi   = curl_multi_init();
+	$handles = array();
+	foreach ($url_by_key as $key => $url) {
+		$handle = curl_init($url);
+		if (false === $handle) {
+			$bodies[ $key ] = null;
+			continue;
+		}
+		curl_setopt_array(
+			$handle,
+			array(
+				CURLOPT_RETURNTRANSFER => true,
+				CURLOPT_CONNECTTIMEOUT => 2,
+				CURLOPT_TIMEOUT        => $timeout,
+				CURLOPT_USERAGENT      => 'AntiqueDataJapan/1.0',
+				CURLOPT_SSL_VERIFYPEER => true,
+				CURLOPT_SSL_VERIFYHOST => 2,
+			)
+		);
+		curl_multi_add_handle($multi, $handle);
+		$handles[ $key ] = $handle;
+	}
+
+	$running = null;
+	do {
+		$status = curl_multi_exec($multi, $running);
+		if ($status === CURLM_CALL_MULTI_PERFORM) {
+			continue;
+		}
+		if ($running > 0) {
+			curl_multi_select($multi, 0.5);
+		}
+	} while ($running > 0 && ($status === CURLM_OK || $status === CURLM_CALL_MULTI_PERFORM));
+
+	foreach ($handles as $key => $handle) {
+		$error = curl_error($handle);
+		$body  = curl_multi_getcontent($handle);
+		if ('' !== $error || !is_string($body) || '' === $body) {
+			$bodies[ $key ] = null;
+		} else {
+			$bodies[ $key ] = $body;
+		}
+		curl_multi_remove_handle($multi, $handle);
+		curl_close($handle);
+	}
+	curl_multi_close($multi);
+
+	return $bodies;
+}
+
+/**
+ * Parse a MyMemory JSON body into usable translated text.
+ *
+ * @param string|null $body        Response body.
+ * @param string      $source      Source text.
+ * @param string      $target_lang Target language.
+ * @return string|null
+ */
+function antiques_marketplace_parse_mymemory_body( $body, $source, $target_lang ) {
+	if (!is_string($body) || '' === $body) {
+		return null;
+	}
+	$decoded = json_decode($body, true);
+	if (!is_array($decoded) || empty($decoded['responseData']['translatedText']) || !is_string($decoded['responseData']['translatedText'])) {
+		return null;
+	}
+	if (isset($decoded['responseStatus']) && (int) $decoded['responseStatus'] !== 200) {
+		return null;
+	}
+	$translated = trim($decoded['responseData']['translatedText']);
+	if (preg_match('/^(MYMEMORY WARNING|QUERY LENGTH|INVALID)/i', $translated)) {
+		return null;
+	}
+	return antiques_marketplace_translated_text_is_usable($source, $translated, $target_lang) ? $translated : null;
+}
+
+/**
+ * Whether a Translate result looks usable for the target UI language.
+ *
+ * @param string $source      Source text.
+ * @param string $translated  Candidate translation.
+ * @param string $target_lang Target language.
+ * @return bool
+ */
+function antiques_marketplace_translated_text_is_usable( $source, $translated, $target_lang ) {
+	$translated = trim((string) $translated);
+	if ('' === $translated) {
+		return false;
+	}
+	if ('ja' === $target_lang) {
+		if (preg_match('/[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}]/u', $translated)) {
+			return true;
+		}
+		return $translated !== trim((string) $source);
+	}
+	if (preg_match('/[A-Za-z]{3,}/', $translated)) {
+		return true;
+	}
+	return $translated !== trim((string) $source);
+}
+
+/**
+ * Google Translate unofficial endpoint (may be rate-limited).
+ *
+ * @param string $text        Source text.
+ * @param string $source_lang Source language code.
+ * @param string $target_lang Target language code.
+ * @param int    $timeout     Timeout seconds.
+ * @return string|null
+ */
+function antiques_marketplace_translate_via_google( $text, $source_lang, $target_lang, $timeout = 2 ) {
+	$response = wp_remote_get(
+		'https://translate.googleapis.com/translate_a/single?client=gtx&sl=' . rawurlencode($source_lang) . '&tl=' . rawurlencode($target_lang) . '&dt=t&q=' . rawurlencode($text),
+		array(
+			'timeout'    => max(1, (int) $timeout),
+			'user-agent' => 'Mozilla/5.0 (compatible; AntiqueDataJapan/1.0)',
 		)
 	);
-
 	if (is_wp_error($response)) {
-		return $text;
+		return null;
 	}
-
-	$body = wp_remote_retrieve_body($response);
-	if (empty($body)) {
-		return $text;
+	$code = (int) wp_remote_retrieve_response_code($response);
+	$body = (string) wp_remote_retrieve_body($response);
+	if ($code < 200 || $code >= 300 || '' === $body || ('[' !== $body[0] && '{' !== $body[0])) {
+		return null;
 	}
-
 	$decoded = json_decode($body, true);
 	if (!is_array($decoded) || empty($decoded[0]) || !is_array($decoded[0])) {
-		return $text;
+		return null;
 	}
-
 	$translated = '';
 	foreach ($decoded[0] as $segment) {
 		if (is_array($segment) && isset($segment[0]) && is_string($segment[0])) {
 			$translated .= $segment[0];
 		}
 	}
-
 	$translated = trim($translated);
-	if ('' === $translated) {
-		return $text;
-	}
+	return antiques_marketplace_translated_text_is_usable($text, $translated, $target_lang) ? $translated : null;
+}
 
-	set_transient($cache_key, $translated, DAY_IN_SECONDS * 7);
-	return $translated;
+/**
+ * MyMemory free Translate API (single string).
+ *
+ * @param string $text        Source text.
+ * @param string $source_lang Source language code.
+ * @param string $target_lang Target language code.
+ * @param int    $timeout     Timeout seconds.
+ * @return string|null
+ */
+function antiques_marketplace_translate_via_mymemory( $text, $source_lang, $target_lang, $timeout = 5 ) {
+	unset($source_lang);
+	$batch = antiques_marketplace_translate_many(array( $text ), $target_lang, $timeout);
+	$out   = isset($batch[0]) ? (string) $batch[0] : '';
+	return antiques_marketplace_translated_text_is_usable($text, $out, $target_lang) ? $out : null;
 }
 
 /**
@@ -587,8 +1134,8 @@ function antiques_marketplace_translate_for_locale( $text ) {
  * @return string
  */
 function antiques_marketplace_no_image_url( $width = 640, $height = 420 ) {
-	$label = rawurlencode(__('No image', 'antiques-marketplace'));
-	return 'https://via.placeholder.com/' . absint($width) . 'x' . absint($height) . '?text=' . $label;
+	unset($width, $height);
+	return get_template_directory_uri() . '/assets/images/catalog-image-placeholder.jpg';
 }
 
 /**
@@ -624,8 +1171,8 @@ function antiques_marketplace_parse_product_details( $raw_text ) {
 		}
 
 		$details[] = array(
-			'label' => antiques_marketplace_translate_for_locale($label),
-			'value' => antiques_marketplace_translate_for_locale($value),
+			'label' => $label,
+			'value' => $value,
 		);
 	}
 

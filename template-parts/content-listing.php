@@ -17,7 +17,13 @@ $price     = is_numeric($price_raw) ? number_format_i18n((float) $price_raw, 2) 
 		<?php if (has_post_thumbnail()) : ?>
 			<?php the_post_thumbnail('medium'); ?>
 		<?php else : ?>
-			<img src="https://via.placeholder.com/640x420?text=No+Image" alt="<?php the_title_attribute(); ?>">
+			<img
+				class="listing-card__image is-fallback-image"
+				src="<?php echo esc_url(antiques_marketplace_no_image_url()); ?>"
+				alt="<?php echo esc_attr(sprintf(__('Image unavailable for %s', 'antiques-marketplace'), get_the_title())); ?>"
+				width="640"
+				height="420"
+			>
 		<?php endif; ?>
 	</a>
 	<div class="card-content">

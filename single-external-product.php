@@ -18,86 +18,171 @@ if (!$product) {
 	status_header(404);
 }
 
+$title                  = '';
+$raw_title              = '';
+$description            = '';
+$product_detail         = '';
+$image                  = '';
+$created                = '';
+$end_time               = '';
+$external_url           = '';
+$bid_count              = null;
+$seller_country         = '';
+$price_formatted        = '';
+$category_slug          = 'other';
+$bid_history            = array();
+$winning_bid            = null;
+$has_product_image      = false;
+$fallback_image         = antiques_marketplace_no_image_url(1024, 640);
+$fallback_alt           = '';
+$main_display_image     = $fallback_image;
+$main_full_image        = $fallback_image;
+$gallery_thumbs         = array();
+$gallery_display        = array();
+$gallery_full           = array();
+$details                = array();
+$translated_details_txt = '';
+$translated_description = '';
+
+if ($product) {
+	$raw_title       = isset($product['product_title']) ? (string) $product['product_title'] : '';
+	$title           = antiques_marketplace_is_latin_text($raw_title)
+		? antiques_marketplace_normalize_latin_punctuation($raw_title)
+		: $raw_title;
+	$description     = isset($product['product_description']) ? (string) $product['product_description'] : '';
+	$product_detail  = isset($product['product_detail']) ? (string) $product['product_detail'] : '';
+	$image           = isset($product['product_image']) ? (string) $product['product_image'] : '';
+	$image_gallery   = isset($product['product_images']) ? (string) $product['product_images'] : '';
+	$created         = isset($product['product_created']) ? (string) $product['product_created'] : '';
+	$end_time        = isset($product['product_end_time']) ? (string) $product['product_end_time'] : '';
+	$external_url    = isset($product['product_url']) ? (string) $product['product_url'] : '';
+	$bid_count       = isset($product['product_bid_count']) && is_numeric($product['product_bid_count']) ? (int) $product['product_bid_count'] : null;
+	$seller_country  = isset($product['product_seller_country']) ? (string) $product['product_seller_country'] : '';
+	$price_formatted = antiques_marketplace_format_display_price($product['product_price'] ?? null);
+	$category_slug   = antiques_marketplace_classify_listing($raw_title, $description, true);
+	$bid_history     = antiques_marketplace_parse_bid_history($product['product_bid_history'] ?? '');
+	$winning_bid     = !empty($bid_history) ? $bid_history[0] : null;
+
+	$decoded_images = !empty($image_gallery) ? json_decode($image_gallery, true) : array();
+	$gallery_images = array();
+	if (is_array($decoded_images)) {
+		foreach ($decoded_images as $img) {
+			if (!is_string($img) || '' === trim($img)) {
+				continue;
+			}
+			$gallery_images[] = $img;
+		}
+	}
+	if (empty($image) && !empty($gallery_images[0])) {
+		$image = (string) $gallery_images[0];
+	}
+	if (!empty($image) && !in_array($image, $gallery_images, true)) {
+		array_unshift($gallery_images, $image);
+	}
+
+	$has_product_image = !empty($image) || !empty($gallery_images);
+	if (empty($image)) {
+		$image = $fallback_image;
+	}
+	$fallback_alt       = sprintf(__('Image unavailable for %s', 'antiques-marketplace'), $title);
+	$main_display_image = $has_product_image ? antiques_marketplace_catawiki_image_url($image, 'display') : $image;
+	$main_full_image    = $has_product_image ? antiques_marketplace_catawiki_image_url($image, 'full') : $image;
+
+	foreach ($gallery_images as $gallery_image_url) {
+		$gallery_thumbs[]  = antiques_marketplace_catawiki_image_url($gallery_image_url, 'thumb');
+		$gallery_display[] = antiques_marketplace_catawiki_image_url($gallery_image_url, 'display');
+		$gallery_full[]    = antiques_marketplace_catawiki_image_url($gallery_image_url, 'full');
+	}
+
+	$details = antiques_marketplace_parse_product_details($description);
+	$details = array_values(
+		array_filter(
+			$details,
+			function( $item ) {
+				return strlen((string) $item['value']) <= 140;
+			}
+		)
+	);
+
+	// Keep auction source copy as-is. Field-level Translate was adding multiple
+	// seconds of TTFB on lots with Japanese certificate text.
+	$details_source         = trim($product_detail) !== '' ? $product_detail : $description;
+	$translated_details_txt = $details_source;
+	$translated_description = $description;
+
+	if ($has_product_image && $main_display_image) {
+		add_action(
+			'wp_head',
+			static function() use ( $main_display_image ) {
+				printf(
+					'<link rel="preload" as="image" href="%s" fetchpriority="high">' . "\n",
+					esc_url($main_display_image)
+				);
+			},
+			1
+		);
+	}
+}
+
 get_header();
 ?>
 
-<section class="panel product-detail-panel" style="margin-top: 1rem;">
+<section class="panel product-detail-panel" style="margin-top: 1rem;" data-product-translate-root>
 	<?php if (!$product) : ?>
 		<h1><?php esc_html_e('Product not found', 'antiques-marketplace'); ?></h1>
 		<p><?php echo esc_html($error ? antiques_marketplace_translate_for_locale($error) : __('This product is unavailable.', 'antiques-marketplace')); ?></p>
 		<p><a class="btn" href="<?php echo esc_url(antiques_marketplace_listings_url()); ?>"><?php esc_html_e('Back to listings', 'antiques-marketplace'); ?></a></p>
 	<?php else : ?>
-		<?php
-		$title          = isset($product['product_title']) ? antiques_marketplace_translate_for_locale((string) $product['product_title']) : '';
-		$raw_title      = isset($product['product_title']) ? (string) $product['product_title'] : '';
-		$description    = isset($product['product_description']) ? (string) $product['product_description'] : '';
-		$product_detail = isset($product['product_detail']) ? (string) $product['product_detail'] : '';
-		$image          = isset($product['product_image']) ? (string) $product['product_image'] : '';
-		$image_gallery  = isset($product['product_images']) ? (string) $product['product_images'] : '';
-		$created        = isset($product['product_created']) ? (string) $product['product_created'] : '';
-		$end_time       = isset($product['product_end_time']) ? (string) $product['product_end_time'] : '';
-		$external_url   = isset($product['product_url']) ? (string) $product['product_url'] : '';
-		$bid_count      = isset($product['product_bid_count']) && is_numeric($product['product_bid_count']) ? (int) $product['product_bid_count'] : null;
-		$seller_country = isset($product['product_seller_country']) ? (string) $product['product_seller_country'] : '';
-		$price_formatted = antiques_marketplace_format_display_price($product['product_price'] ?? null);
-		$category_slug  = antiques_marketplace_classify_listing($raw_title, $description, true);
-		$bid_history    = antiques_marketplace_parse_bid_history($product['product_bid_history'] ?? '');
-		$winning_bid    = !empty($bid_history) ? $bid_history[0] : null;
-
-		$decoded_images = !empty($image_gallery) ? json_decode($image_gallery, true) : array();
-		$gallery_images = array();
-		if (is_array($decoded_images)) {
-			foreach ($decoded_images as $img) {
-				if (!is_string($img) || '' === trim($img)) {
-					continue;
-				}
-				$gallery_images[] = $img;
-			}
-		}
-		if (empty($image) && !empty($gallery_images[0])) {
-			$image = (string) $gallery_images[0];
-		}
-		if (!empty($image) && !in_array($image, $gallery_images, true)) {
-			array_unshift($gallery_images, $image);
-		}
-		if (empty($image)) {
-			$image = antiques_marketplace_no_image_url(1024, 640);
-		}
-		$details = antiques_marketplace_parse_product_details($description);
-		$details = array_values(
-			array_filter(
-				$details,
-				function( $item ) {
-					return strlen((string) $item['value']) <= 140;
-				}
-			)
-		);
-		$details_source         = trim($product_detail) !== '' ? $product_detail : $description;
-		$translated_details_txt = antiques_marketplace_translate_for_locale($details_source);
-		$translated_description = antiques_marketplace_translate_for_locale($description);
-		?>
+		<p class="product-translate-status" data-product-translate-status hidden aria-live="polite"></p>
 		<div class="product-detail-grid">
 			<div class="product-detail-image-wrap" data-product-gallery>
-				<a class="product-image-main-btn" href="<?php echo esc_url($image); ?>" target="_blank" rel="noopener noreferrer" data-main-image-link>
-					<img class="product-detail-image" src="<?php echo esc_url($image); ?>" alt="<?php echo esc_attr($title); ?>" data-main-image>
+				<a
+					class="product-image-main-btn"
+					href="<?php echo esc_url($main_full_image); ?>"
+					aria-label="<?php esc_attr_e('View full image', 'antiques-marketplace'); ?>"
+					data-main-image-link
+				>
+					<img
+						class="product-detail-image<?php echo $has_product_image ? '' : ' is-fallback-image'; ?>"
+						src="<?php echo esc_url($main_display_image); ?>"
+						alt="<?php echo esc_attr($has_product_image ? $title : $fallback_alt); ?>"
+						width="640"
+						height="430"
+						fetchpriority="high"
+						decoding="async"
+						data-fallback-src="<?php echo esc_url($fallback_image); ?>"
+						data-fallback-alt="<?php echo esc_attr($fallback_alt); ?>"
+						data-main-image
+					>
 				</a>
-				<?php if (count($gallery_images) > 1) : ?>
+				<?php if (count($gallery_full) > 1) : ?>
 					<div class="product-thumb-row">
-						<?php foreach ($gallery_images as $index => $gallery_image_url) : ?>
+						<?php foreach ($gallery_full as $index => $gallery_full_url) : ?>
 							<button
 								type="button"
 								class="product-thumb <?php echo 0 === $index ? 'is-active' : ''; ?>"
-								data-thumb-src="<?php echo esc_url($gallery_image_url); ?>"
+								data-thumb-src="<?php echo esc_url($gallery_full_url); ?>"
+								data-thumb-display="<?php echo esc_url($gallery_display[ $index ]); ?>"
 								aria-label="<?php echo esc_attr(sprintf(__('Preview image %d', 'antiques-marketplace'), $index + 1)); ?>"
 							>
-								<img src="<?php echo esc_url($gallery_image_url); ?>" alt="<?php echo esc_attr($title); ?>">
+								<img
+									src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+									data-src="<?php echo esc_url($gallery_thumbs[ $index ]); ?>"
+									alt=""
+									width="70"
+									height="62"
+									decoding="async"
+									class="product-thumb__image is-deferred"
+									data-fallback-src="<?php echo esc_url($fallback_image); ?>"
+									data-fallback-alt="<?php echo esc_attr($fallback_alt); ?>"
+								>
 							</button>
 						<?php endforeach; ?>
 					</div>
 				<?php endif; ?>
 			</div>
 			<div class="product-detail-info">
-				<h1 class="product-detail-title"><?php echo esc_html($title); ?></h1>
+				<h1 class="product-detail-title" data-product-title><?php echo esc_html($title); ?></h1>
 				<?php
 				$show_sold_price = false;
 				if (!empty($end_time)) {
@@ -152,6 +237,48 @@ get_header();
 				<?php endif; ?>
 			</div>
 		</div>
+		<dialog
+			class="product-lightbox"
+			aria-label="<?php echo esc_attr(sprintf(__('Image viewer: %s', 'antiques-marketplace'), $title)); ?>"
+			data-product-lightbox
+		>
+			<div class="product-lightbox__surface">
+				<button type="button" class="product-lightbox__close" data-lightbox-close>
+					<?php esc_html_e('Close', 'antiques-marketplace'); ?>
+				</button>
+				<div class="product-lightbox__zoom" role="group" aria-label="<?php esc_attr_e('Zoom controls', 'antiques-marketplace'); ?>">
+					<button type="button" class="product-lightbox__zoom-btn" aria-label="<?php esc_attr_e('Zoom out', 'antiques-marketplace'); ?>" data-lightbox-zoom-out>−</button>
+					<span class="product-lightbox__zoom-level" data-lightbox-zoom-level aria-live="polite">100%</span>
+					<button type="button" class="product-lightbox__zoom-btn" aria-label="<?php esc_attr_e('Zoom in', 'antiques-marketplace'); ?>" data-lightbox-zoom-in>+</button>
+					<button type="button" class="product-lightbox__zoom-btn product-lightbox__zoom-btn--reset" data-lightbox-zoom-reset><?php esc_html_e('Reset', 'antiques-marketplace'); ?></button>
+				</div>
+				<button
+					type="button"
+					class="product-lightbox__nav product-lightbox__nav--previous"
+					aria-label="<?php esc_attr_e('Previous image', 'antiques-marketplace'); ?>"
+					data-lightbox-previous
+				>‹</button>
+				<figure class="product-lightbox__figure" data-lightbox-stage>
+					<img
+						class="product-lightbox__image<?php echo $has_product_image ? '' : ' is-fallback-image'; ?>"
+						src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+						data-src="<?php echo esc_url($main_full_image); ?>"
+						alt="<?php echo esc_attr($has_product_image ? $title : $fallback_alt); ?>"
+						data-fallback-src="<?php echo esc_url($fallback_image); ?>"
+						data-fallback-alt="<?php echo esc_attr($fallback_alt); ?>"
+						data-lightbox-image
+						draggable="false"
+					>
+					<figcaption class="product-lightbox__counter" data-lightbox-counter aria-live="polite"></figcaption>
+				</figure>
+				<button
+					type="button"
+					class="product-lightbox__nav product-lightbox__nav--next"
+					aria-label="<?php esc_attr_e('Next image', 'antiques-marketplace'); ?>"
+					data-lightbox-next
+				>›</button>
+			</div>
+		</dialog>
 		<?php if (!empty($bid_history)) : ?>
 			<div class="product-bid-history">
 				<h3><?php esc_html_e('Bid history', 'antiques-marketplace'); ?></h3>
@@ -187,13 +314,13 @@ get_header();
 		<?php endif; ?>
 
 		<?php if (!empty($details)) : ?>
-			<div class="product-details-table">
+			<div class="product-details-table" data-product-details>
 				<h3><?php esc_html_e('Details', 'antiques-marketplace'); ?></h3>
 				<div class="product-details-grid">
 					<?php foreach ($details as $item) : ?>
-						<div class="product-detail-item">
-							<div class="product-detail-label"><?php echo esc_html($item['label']); ?></div>
-							<div class="product-detail-value"><?php echo esc_html($item['value']); ?></div>
+						<div class="product-detail-item" data-product-detail-item>
+							<div class="product-detail-label" data-product-detail-label><?php echo esc_html($item['label']); ?></div>
+							<div class="product-detail-value" data-product-detail-value><?php echo esc_html($item['value']); ?></div>
 						</div>
 					<?php endforeach; ?>
 				</div>
@@ -201,43 +328,19 @@ get_header();
 		<?php endif; ?>
 
 		<?php if ($translated_details_txt) : ?>
-			<div class="product-detail-description">
+			<div class="product-detail-description" data-product-details-overview>
 				<h3><?php esc_html_e('Details overview', 'antiques-marketplace'); ?></h3>
-				<p><?php echo nl2br(esc_html($translated_details_txt)); ?></p>
+				<p data-product-richtext><?php echo nl2br(esc_html($translated_details_txt)); ?></p>
 			</div>
 		<?php endif; ?>
 
-		<?php if ($translated_description) : ?>
-			<div class="product-detail-description">
+		<?php if ($translated_description && $translated_description !== $translated_details_txt) : ?>
+			<div class="product-detail-description" data-product-description>
 				<h3><?php esc_html_e('Description', 'antiques-marketplace'); ?></h3>
-				<p><?php echo nl2br(esc_html($translated_description)); ?></p>
+				<p data-product-richtext><?php echo nl2br(esc_html($translated_description)); ?></p>
 			</div>
 		<?php endif; ?>
 	<?php endif; ?>
 </section>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-  var gallery = document.querySelector('[data-product-gallery]');
-  if (!gallery) return;
-
-  var mainImage = gallery.querySelector('[data-main-image]');
-  var mainImageLink = gallery.querySelector('[data-main-image-link]');
-  var thumbs = gallery.querySelectorAll('.product-thumb');
-
-  thumbs.forEach(function (thumb) {
-    thumb.addEventListener('click', function () {
-      var src = thumb.getAttribute('data-thumb-src');
-      if (!src || !mainImage) return;
-      mainImage.setAttribute('src', src);
-      if (mainImageLink) {
-        mainImageLink.setAttribute('href', src);
-      }
-      thumbs.forEach(function (t) { t.classList.remove('is-active'); });
-      thumb.classList.add('is-active');
-    });
-  });
-});
-</script>
 
 <?php get_footer(); ?>

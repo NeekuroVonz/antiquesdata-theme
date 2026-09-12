@@ -181,17 +181,59 @@ function antiques_marketplace_fulltext_boolean_query( $search ) {
 }
 
 /**
+ * Extract the Catawiki asset path and filename from a stored image URL.
+ *
+ * @param string $url Stored image URL.
+ * @return array{0:string,1:string}|null Path and filename, or null.
+ */
+function antiques_marketplace_catawiki_asset_parts( $url ) {
+	$url = (string) $url;
+	if (preg_match('#^https://assets\.catawiki\.nl/assets/(.+)/(?:thumb2_)?([^/]+)$#', $url, $m)) {
+		return array( $m[1], $m[2] );
+	}
+	if (preg_match('#^https://assets\.catawiki\.com/image/cw_[^/]+/plain/assets/catawiki/assets/(.+)/([^/]+)$#', $url, $m)) {
+		return array( $m[1], $m[2] );
+	}
+	return null;
+}
+
+/**
+ * Build a Catawiki CDN image URL for display or thumbnails.
+ *
+ * @param string $url     Stored image URL.
+ * @param string $variant thumb|display|full.
+ * @return string
+ */
+function antiques_marketplace_catawiki_image_url( $url, $variant = 'display' ) {
+	$url   = (string) $url;
+	$parts = antiques_marketplace_catawiki_asset_parts($url);
+	if (!$parts) {
+		return $url;
+	}
+
+	list( $path, $filename ) = $parts;
+	$variant = in_array($variant, array( 'thumb', 'display', 'full' ), true) ? $variant : 'display';
+
+	if ('thumb' === $variant) {
+		return 'https://assets.catawiki.com/image/cw_thumb2/plain/assets/catawiki/assets/' . $path . '/' . $filename;
+	}
+
+	if ('display' === $variant) {
+		// Original asset is usually smaller/faster than cw_large for on-page LCP.
+		return 'https://assets.catawiki.nl/assets/' . $path . '/' . $filename;
+	}
+
+	return 'https://assets.catawiki.nl/assets/' . $path . '/' . $filename;
+}
+
+/**
  * Prefer the Catawiki CDN thumb URL so the browser skips a 301 on every card image.
  *
  * @param string $url Stored image URL.
  * @return string
  */
 function antiques_marketplace_listing_image_url( $url ) {
-	$url = (string) $url;
-	if (preg_match('#^https://assets\.catawiki\.nl/assets/(.+)/thumb2_([^/]+)$#', $url, $m)) {
-		return 'https://assets.catawiki.com/image/cw_thumb2/plain/assets/catawiki/assets/' . $m[1] . '/' . $m[2];
-	}
-	return $url;
+	return antiques_marketplace_catawiki_image_url($url, 'thumb');
 }
 
 /**

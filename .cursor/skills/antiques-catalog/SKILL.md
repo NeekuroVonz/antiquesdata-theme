@@ -28,3 +28,4 @@ Do not show GMV / sell-through / estimate ratio on this page. Cache the payload 
 - Search `product_description` with `LIKE %term%`
 - Show "View source listing" (`antiques_marketplace_show_source_listing()` is false)
 - Hardcode `$` as if prices were USD
+- Translate product title/description/details synchronously in the product HTML request (use AJAX `antiques_translate_product` after load instead)
