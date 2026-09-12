@@ -1,0 +1,38 @@
+---
+description: AntiquesData theme architecture — catalog, FX, taxonomy, dashboard
+alwaysApply: true
+---
+
+# Antiques Marketplace architecture
+
+WordPress theme that reads a remote Catawiki MySQL catalog (`products`). Prices are stored in **EUR**.
+
+The table is one row per Catawiki lot (~29k). PRIMARY KEY is autoincrement `id`; Catawiki lot id is `product_id` with **UNIQUE** `uniq_product_id` so the scraper `ON DUPLICATE KEY UPDATE` can upsert. Listing/dashboard SQL still uses `antiques_marketplace_products_from_latest_lot()` / `antiques_marketplace_latest_lot_where_sql()` as a safety net. Do not PHP-dedupe thousands of rows.
+
+## Where code belongs
+
+- `inc/database.php` — shared `wpdb` connection, schema/index cache
+- `inc/catalog.php` — listing SQL (paginate in SQL, never pull thousands of rows)
+- `inc/currency.php` — EUR → USD (English) / JPY (Japanese) via ECB Frankfurter
+- `inc/categories.php` — 10 taxonomy sections + hashtag URLs
+- `inc/bids.php` — `bidding_history` JSON (winning bidder country)
+- `inc/dashboard.php` — market-trend equations
+- Templates: `front-page.php` (public marketing landing), `page-listings.php` + `template-parts/catalog-listings.php` (gated catalog at `/data/`), `single-external-product.php`, `page-dashboard.php`
+
+The homepage is a public landing. Catalog search, filters, and category URLs must use `antiques_marketplace_listings_url()`, never `home_url('/')`. Do not run catalog COUNT/dashboard aggregations on `front-page.php`.
+
+## Search
+
+Use FULLTEXT `MATCH(product_title) AGAINST (... IN BOOLEAN MODE)` when available. Search title only. Do not `LIKE` description. Do not PHP-dedupe 5k rows.
+
+## UI currency
+
+Format with `antiques_marketplace_format_display_price()`. Convert min/max filters back to EUR before SQL. Always show the ECB rate caption.
+
+## Categories
+
+Use the 10 slugs in `antiques_marketplace_catalog_taxonomy()`. Hashtags link to `/data/?category={slug}`. Do not invent a 11th section unless the taxonomy map is updated.
+
+## Source listing
+
+Keep `antiques_marketplace_show_source_listing()` false until product asks to restore it.

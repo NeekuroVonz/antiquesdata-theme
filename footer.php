@@ -10,25 +10,45 @@ if (!defined('ABSPATH')) {
 ?>
 </main>
 
-<footer class="site-footer">
-	<div class="container">
-		<?php
-		$footer_links = array(
-			'terms-of-service'    => __('Terms of Service', 'antiques-marketplace'),
-			'privacy-policy'      => __('Privacy Policy', 'antiques-marketplace'),
-			'commerce-disclosure' => __('Commerce disclosure', 'antiques-marketplace'),
-		);
-		?>
-		<nav class="footer-links" aria-label="<?php esc_attr_e('Legal links', 'antiques-marketplace'); ?>">
-			<?php foreach ($footer_links as $slug => $label) : ?>
-				<?php $page = get_page_by_path($slug); ?>
-				<?php if ($page instanceof WP_Post) : ?>
-					<a href="<?php echo esc_url(get_permalink($page)); ?>"><?php echo esc_html($label); ?></a>
-				<?php else : ?>
-					<a href="<?php echo esc_url(home_url('/' . $slug . '/')); ?>"><?php echo esc_html($label); ?></a>
-				<?php endif; ?>
-			<?php endforeach; ?>
-		</nav>
+<footer class="site-footer" id="contact">
+	<div class="footer-grid">
+		<div class="footer-brand">
+			<a class="brand" href="<?php echo esc_url(home_url('/')); ?>">
+				<span class="brand-mark" aria-hidden="true">
+					<svg viewBox="0 0 36 36" width="28" height="28">
+						<circle cx="18" cy="18" r="16.5" fill="none" stroke="currentColor" stroke-width="1.4"/>
+						<circle cx="18" cy="18" r="11.5" fill="none" stroke="currentColor" stroke-width="0.7" opacity="0.55"/>
+						<path d="M11 22.5c2.2-6.4 5-10.6 7-13.2 2 2.6 4.8 6.8 7 13.2" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+						<path d="M13.2 19.2h9.6" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+					</svg>
+				</span>
+				<span class="brand-name">Antique Data Japan</span>
+			</a>
+			<p><?php esc_html_e('Japanese antiques, priced against the world market.', 'antiques-marketplace'); ?></p>
+		</div>
+		<div>
+			<h2><?php esc_html_e('Service', 'antiques-marketplace'); ?></h2>
+			<a href="<?php echo esc_url(antiques_marketplace_landing_hash('features')); ?>"><?php esc_html_e('Service features', 'antiques-marketplace'); ?></a>
+			<a href="<?php echo esc_url(antiques_marketplace_listings_url()); ?>"><?php esc_html_e('Data coverage', 'antiques-marketplace'); ?></a>
+			<a href="<?php echo esc_url(antiques_marketplace_landing_hash('audience')); ?>"><?php esc_html_e('Use cases', 'antiques-marketplace'); ?></a>
+			<a href="<?php echo esc_url(antiques_marketplace_landing_hash('pricing')); ?>"><?php esc_html_e('Pricing', 'antiques-marketplace'); ?></a>
+		</div>
+		<div>
+			<h2><?php esc_html_e('Support', 'antiques-marketplace'); ?></h2>
+			<a href="<?php echo esc_url(antiques_marketplace_landing_hash('faq')); ?>"><?php esc_html_e('FAQ', 'antiques-marketplace'); ?></a>
+			<a href="<?php echo esc_url(antiques_marketplace_landing_hash('contact')); ?>"><?php esc_html_e('Contact', 'antiques-marketplace'); ?></a>
+		</div>
+		<div>
+			<h2><?php esc_html_e('Company', 'antiques-marketplace'); ?></h2>
+			<a href="<?php echo esc_url(antiques_marketplace_page_link('commerce-disclosure')); ?>"><?php esc_html_e('Operator', 'antiques-marketplace'); ?></a>
+			<a href="<?php echo esc_url(antiques_marketplace_page_link('privacy-policy')); ?>"><?php esc_html_e('Privacy Policy', 'antiques-marketplace'); ?></a>
+			<a href="<?php echo esc_url(antiques_marketplace_page_link('commerce-disclosure')); ?>"><?php esc_html_e('Commerce disclosure', 'antiques-marketplace'); ?></a>
+			<a href="<?php echo esc_url(antiques_marketplace_page_link('terms-of-service')); ?>"><?php esc_html_e('Terms of Service', 'antiques-marketplace'); ?></a>
+		</div>
+		<div class="footer-cta">
+			<a class="btn btn-gold" href="mailto:<?php echo esc_attr(get_bloginfo('admin_email')); ?>"><?php esc_html_e('Contact us here', 'antiques-marketplace'); ?></a>
+			<p class="footer-copy">&copy; 2026 Antique Data Japan Co., Ltd.</p>
+		</div>
 	</div>
 </footer>
 

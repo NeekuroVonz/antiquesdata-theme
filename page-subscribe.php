@@ -22,7 +22,7 @@ $full_bypass   = antiques_marketplace_bypass_membership();
 
 	<?php if ($full_bypass || $bypass_sub) : ?>
 		<p class="legal-muted"><?php esc_html_e('Membership payment is bypassed in this environment (see .env).', 'antiques-marketplace'); ?></p>
-		<p><a class="btn" href="<?php echo esc_url(home_url('/')); ?>"><?php esc_html_e('Continue to site', 'antiques-marketplace'); ?></a></p>
+		<p><a class="btn" href="<?php echo esc_url(antiques_marketplace_listings_url()); ?>"><?php esc_html_e('Continue to site', 'antiques-marketplace'); ?></a></p>
 	<?php elseif (!is_user_logged_in()) : ?>
 		<p><?php esc_html_e('Log in or create an account to complete payment and unlock all listings.', 'antiques-marketplace'); ?></p>
 		<p>
@@ -34,7 +34,7 @@ $full_bypass   = antiques_marketplace_bypass_membership();
 		<?php if (!empty($_GET['welcome'])) : ?>
 			<p class="auth-notice auth-notice--ok"><?php esc_html_e('Thank you! Your payment was successful.', 'antiques-marketplace'); ?></p>
 		<?php endif; ?>
-		<p><a class="btn" href="<?php echo esc_url(home_url('/')); ?>"><?php esc_html_e('Browse listings', 'antiques-marketplace'); ?></a></p>
+		<p><a class="btn" href="<?php echo esc_url(antiques_marketplace_listings_url()); ?>"><?php esc_html_e('Browse listings', 'antiques-marketplace'); ?></a></p>
 	<?php else : ?>
 		<p>
 			<?php

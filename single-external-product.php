@@ -25,10 +25,11 @@ get_header();
 	<?php if (!$product) : ?>
 		<h1><?php esc_html_e('Product not found', 'antiques-marketplace'); ?></h1>
 		<p><?php echo esc_html($error ? antiques_marketplace_translate_for_locale($error) : __('This product is unavailable.', 'antiques-marketplace')); ?></p>
-		<p><a class="btn" href="<?php echo esc_url(home_url('/')); ?>"><?php esc_html_e('Back to listings', 'antiques-marketplace'); ?></a></p>
+		<p><a class="btn" href="<?php echo esc_url(antiques_marketplace_listings_url()); ?>"><?php esc_html_e('Back to listings', 'antiques-marketplace'); ?></a></p>
 	<?php else : ?>
 		<?php
 		$title          = isset($product['product_title']) ? antiques_marketplace_translate_for_locale((string) $product['product_title']) : '';
+		$raw_title      = isset($product['product_title']) ? (string) $product['product_title'] : '';
 		$description    = isset($product['product_description']) ? (string) $product['product_description'] : '';
 		$product_detail = isset($product['product_detail']) ? (string) $product['product_detail'] : '';
 		$image          = isset($product['product_image']) ? (string) $product['product_image'] : '';
@@ -36,9 +37,12 @@ get_header();
 		$created        = isset($product['product_created']) ? (string) $product['product_created'] : '';
 		$end_time       = isset($product['product_end_time']) ? (string) $product['product_end_time'] : '';
 		$external_url   = isset($product['product_url']) ? (string) $product['product_url'] : '';
-		$price_formatted = isset($product['product_price']) && is_numeric($product['product_price'])
-			? number_format_i18n((float) $product['product_price'], 2)
-			: null;
+		$bid_count      = isset($product['product_bid_count']) && is_numeric($product['product_bid_count']) ? (int) $product['product_bid_count'] : null;
+		$seller_country = isset($product['product_seller_country']) ? (string) $product['product_seller_country'] : '';
+		$price_formatted = antiques_marketplace_format_display_price($product['product_price'] ?? null);
+		$category_slug  = antiques_marketplace_classify_listing($raw_title, $description, true);
+		$bid_history    = antiques_marketplace_parse_bid_history($product['product_bid_history'] ?? '');
+		$winning_bid    = !empty($bid_history) ? $bid_history[0] : null;
 
 		$decoded_images = !empty($image_gallery) ? json_decode($image_gallery, true) : array();
 		$gallery_images = array();
@@ -111,18 +115,77 @@ get_header();
 					?>
 				</div>
 				<div class="product-detail-price">
-					<?php echo esc_html($price_formatted ? '$' . $price_formatted : __('Bid not available', 'antiques-marketplace')); ?>
+					<?php echo esc_html($price_formatted ? $price_formatted : __('Bid not available', 'antiques-marketplace')); ?>
+				</div>
+				<p class="fx-caption fx-caption--inline"><?php echo esc_html(antiques_marketplace_exchange_rate_caption()); ?></p>
+				<?php if (is_numeric($product['product_price'] ?? null)) : ?>
+					<div class="meta meta-secondary"><?php echo esc_html(sprintf(__('Original hammer: €%s', 'antiques-marketplace'), number_format_i18n((float) $product['product_price'], 2))); ?></div>
+				<?php endif; ?>
+				<div class="product-hashtags">
+					<a class="category-chip" href="<?php echo esc_url(antiques_marketplace_category_url($category_slug)); ?>">#<?php echo esc_html(antiques_marketplace_category_label($category_slug)); ?></a>
 				</div>
 				<div class="meta"><?php echo esc_html(antiques_marketplace_format_time_left($end_time)); ?></div>
+				<?php if (null !== $bid_count) : ?>
+					<div class="meta meta-secondary"><?php echo esc_html(sprintf(__('Bids: %d', 'antiques-marketplace'), $bid_count)); ?></div>
+				<?php endif; ?>
+				<?php if ($winning_bid && !empty($winning_bid['country_code'])) : ?>
+					<div class="meta meta-secondary">
+						<?php
+						echo esc_html(
+							sprintf(
+								__('Sold to: %1$s (Bidder %2$s)', 'antiques-marketplace'),
+								antiques_marketplace_country_name($winning_bid['country_code']),
+								$winning_bid['bidder_name'] ? $winning_bid['bidder_name'] : __('Unknown', 'antiques-marketplace')
+							)
+						);
+						?>
+					</div>
+				<?php elseif ($seller_country) : ?>
+					<div class="meta meta-secondary"><?php echo esc_html(sprintf(__('Seller country: %s', 'antiques-marketplace'), $seller_country)); ?></div>
+				<?php endif; ?>
 				<?php if ($created) : ?>
 					<div class="meta meta-secondary"><?php echo esc_html(wp_date(get_option('date_format'), strtotime($created))); ?></div>
 				<?php endif; ?>
-				<p><a class="btn" href="<?php echo esc_url(home_url('/')); ?>"><?php esc_html_e('Back to listings', 'antiques-marketplace'); ?></a></p>
-				<?php if (!empty($external_url)) : ?>
+				<p><a class="btn" href="<?php echo esc_url(antiques_marketplace_listings_url()); ?>"><?php esc_html_e('Back to listings', 'antiques-marketplace'); ?></a></p>
+				<?php if (antiques_marketplace_show_source_listing() && !empty($external_url)) : ?>
 					<p><a class="product-external-link" href="<?php echo esc_url($external_url); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('View source listing', 'antiques-marketplace'); ?></a></p>
 				<?php endif; ?>
 			</div>
 		</div>
+		<?php if (!empty($bid_history)) : ?>
+			<div class="product-bid-history">
+				<h3><?php esc_html_e('Bid history', 'antiques-marketplace'); ?></h3>
+				<table class="bid-history-table">
+					<thead>
+						<tr>
+							<th><?php esc_html_e('Bidder', 'antiques-marketplace'); ?></th>
+							<th><?php esc_html_e('Country', 'antiques-marketplace'); ?></th>
+							<th><?php esc_html_e('Amount', 'antiques-marketplace'); ?></th>
+							<th><?php esc_html_e('When', 'antiques-marketplace'); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php foreach ($bid_history as $bid_row) : ?>
+							<tr>
+								<td><?php echo esc_html($bid_row['bidder_name'] ? sprintf(__('Bidder %s', 'antiques-marketplace'), $bid_row['bidder_name']) : __('Bidder', 'antiques-marketplace')); ?></td>
+								<td><?php echo esc_html($bid_row['country_code'] ? antiques_marketplace_country_name($bid_row['country_code']) : '—'); ?></td>
+								<td><?php echo esc_html(antiques_marketplace_format_display_price($bid_row['amount'])); ?></td>
+								<td>
+									<?php
+									if ($bid_row['created_at']) {
+										echo esc_html(wp_date(get_option('date_format') . ' ' . get_option('time_format'), strtotime($bid_row['created_at'])));
+									} else {
+										echo '—';
+									}
+									?>
+								</td>
+							</tr>
+						<?php endforeach; ?>
+					</tbody>
+				</table>
+			</div>
+		<?php endif; ?>
+
 		<?php if (!empty($details)) : ?>
 			<div class="product-details-table">
 				<h3><?php esc_html_e('Details', 'antiques-marketplace'); ?></h3>

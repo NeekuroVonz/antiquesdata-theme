@@ -1,0 +1,17 @@
+---
+description: PHP theme conventions for Antiques Marketplace
+globs: "**/*.php"
+alwaysApply: false
+---
+
+# PHP conventions
+
+- Prefix every function `antiques_marketplace_`.
+- Guard files with `if (!defined('ABSPATH')) { exit; }`.
+- Comments and identifiers in English.
+- Names must describe business intent (`convert_display_to_eur`, not `process`).
+- Guard clauses and early returns; no nested `if` pyramids.
+- Escape output: `esc_html`, `esc_url`, `esc_attr`. Prepare SQL with `$wpdb->prepare`.
+- Cache expensive remote catalog work in transients. Do not call Google Translate on listing grids.
+- Do not add Composer packages unless existing theme code already needs them.
+- Keep business rules (FX, taxonomy, dashboard equations) out of templates; templates only render.

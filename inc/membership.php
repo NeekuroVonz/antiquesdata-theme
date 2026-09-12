@@ -213,6 +213,9 @@ function antiques_marketplace_public_slugs() {
  * Whether the current request is only for public pages (legal + auth).
  */
 function antiques_marketplace_is_public_page_request() {
+	if (is_front_page()) {
+		return true;
+	}
 	if (!is_page()) {
 		return false;
 	}

@@ -1,0 +1,29 @@
+---
+description: Fast Catawiki catalog queries — indexes, FULLTEXT, no unbounded fetches
+globs: inc/{catalog,database,dashboard,categories}.php
+alwaysApply: false
+---
+
+# Catalog query rules
+
+The `products` table has `ft_product_title` (FULLTEXT), `idx_end_time`, `idx_end_price` `(end_time, amount)`, `idx_amount_end` `(amount, end_time)`, and UNIQUE `uniq_product_id` `(product_id)`.
+
+`product_id` is the Catawiki lot id and is UNIQUE (duplicate scrape rows were deleted). Keep `antiques_marketplace_latest_lot_where_sql()` on listing SELECT and `antiques_marketplace_products_from_latest_lot()` on COUNT/dashboard as a safety net. Do not collapse duplicates in PHP.
+
+Default Past sales (`ORDER BY current_bid_amount DESC LIMIT 20`) must use `idx_amount_end`. Do not rely on `idx_end_price` for that sort.
+
+```php
+// BAD — 30–60s on unbounded rows
+WHERE title LIKE %s OR description LIKE %s
+LIMIT 5000  // then array_slice in PHP
+
+// GOOD
+WHERE MATCH(`product_title`) AGAINST (... IN BOOLEAN MODE)
+  AND bidding_end_time < NOW()
+ORDER BY current_bid_amount DESC
+LIMIT 20 OFFSET 0
+```
+
+Ended lots = `bidding_end_time < NOW()`. Ignore `is_sold` (almost never set).
+
+Dashboard JSON (`bidding_history`) aggregations must be transient-cached. Do not run them on the homepage.
