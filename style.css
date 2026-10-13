@@ -1640,8 +1640,171 @@ body.has-open-lightbox {
   text-align: center;
 }
 
+.trends-ai {
+  margin-top: 2.4rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e6dcc8;
+}
+
+.trends-ai__grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.trends-ai__brief,
+.trends-ai__chat {
+  background: #fffdf8;
+  border: 1px solid #e6dcc8;
+  border-radius: 12px;
+  padding: 1.15rem 1.2rem 1.25rem;
+}
+
+.trends-ai h2 {
+  margin: 0 0 0.45rem;
+  font-family: "Noto Serif JP", "Times New Roman", serif;
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+.trends-ai__note {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.trends-ai__body {
+  color: var(--ink);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.trends-ai__body p {
+  margin: 0 0 0.75rem;
+}
+
+.trends-ai__body ul {
+  margin: 0 0 0.85rem;
+  padding-left: 1.15rem;
+}
+
+.trends-ai__body li {
+  margin: 0.25rem 0;
+}
+
+.trends-ai__loading {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.trends-ai__prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
+}
+
+.trends-ai__prompt {
+  margin: 0;
+  border: 1px solid rgba(196, 164, 94, 0.45);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--navy);
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.trends-ai__prompt:hover {
+  background: var(--gold-soft);
+}
+
+.trends-ai__prompt:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.trends-ai__thread {
+  min-height: 9rem;
+  max-height: 18rem;
+  overflow: auto;
+  margin-bottom: 0.85rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 8px;
+  background: #f6f1e8;
+  border: 1px solid #e6dcc8;
+}
+
+.trends-ai__msg {
+  margin-bottom: 0.85rem;
+}
+
+.trends-ai__msg:last-child {
+  margin-bottom: 0;
+}
+
+.trends-ai__msg-role {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--gold);
+}
+
+.trends-ai__msg--user .trends-ai__msg-role {
+  color: var(--muted);
+}
+
+.trends-ai__msg-text {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.trends-ai__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+}
+
+.trends-ai__input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #d9d0c0;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 0.62rem 0.75rem;
+}
+
+.trends-ai__input:focus {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+.trends-ai__send {
+  white-space: nowrap;
+}
+
+.trends-ai__send:disabled,
+.trends-ai__input:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 @media (max-width: 900px) {
-  .trends__charts {
+  .trends__charts,
+  .trends-ai__grid {
     grid-template-columns: 1fr;
   }
 

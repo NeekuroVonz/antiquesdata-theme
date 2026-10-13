@@ -40,13 +40,11 @@ $trial_url    = antiques_marketplace_trial_url();
 			<a class="<?php echo is_front_page() ? 'is-current' : ''; ?>" href="<?php echo esc_url(home_url('/')); ?>"><?php esc_html_e('Home', 'antiques-marketplace'); ?></a>
 			<a href="<?php echo esc_url(antiques_marketplace_landing_hash('features')); ?>"><?php esc_html_e('Service features', 'antiques-marketplace'); ?></a>
 			<a class="<?php echo is_page('data') ? 'is-current' : ''; ?>" href="<?php echo esc_url(antiques_marketplace_listings_url()); ?>"><?php esc_html_e('Data coverage', 'antiques-marketplace'); ?></a>
+			<a class="<?php echo is_page('market-trends') ? 'is-current' : ''; ?>" href="<?php echo esc_url(antiques_marketplace_page_link('market-trends')); ?>"><?php esc_html_e('Trend Dashboard', 'antiques-marketplace'); ?></a>
 			<a href="<?php echo esc_url(antiques_marketplace_landing_hash('audience')); ?>"><?php esc_html_e('Use cases', 'antiques-marketplace'); ?></a>
 			<a href="<?php echo esc_url(antiques_marketplace_landing_hash('pricing')); ?>"><?php esc_html_e('Pricing', 'antiques-marketplace'); ?></a>
 			<a href="<?php echo esc_url(antiques_marketplace_landing_hash('faq')); ?>"><?php esc_html_e('FAQ', 'antiques-marketplace'); ?></a>
 			<a href="<?php echo esc_url(antiques_marketplace_landing_hash('contact')); ?>"><?php esc_html_e('Contact', 'antiques-marketplace'); ?></a>
-			<?php if (!is_front_page()) : ?>
-				<a class="<?php echo is_page('market-trends') ? 'is-current' : ''; ?>" href="<?php echo esc_url(antiques_marketplace_page_link('market-trends')); ?>"><?php esc_html_e('Market trends', 'antiques-marketplace'); ?></a>
-			<?php endif; ?>
 		</nav>
 
 		<div class="header-tools">

@@ -20,6 +20,7 @@ require_once get_template_directory() . '/inc/categories.php';
 require_once get_template_directory() . '/inc/bids.php';
 require_once get_template_directory() . '/inc/catalog.php';
 require_once get_template_directory() . '/inc/dashboard.php';
+require_once get_template_directory() . '/inc/dashboard-ai.php';
 require_once get_template_directory() . '/inc/listings.php';
 
 /**
@@ -49,28 +50,43 @@ function antiques_marketplace_assets() {
 		array(),
 		null
 	);
-	wp_enqueue_style('antiques-marketplace-style', get_stylesheet_uri(), array('antiques-fonts'), '1.3.1');
+	wp_enqueue_style('antiques-marketplace-style', get_stylesheet_uri(), array('antiques-fonts'), '1.3.5');
 	if (is_front_page()) {
 		wp_enqueue_style(
 			'antiques-landing',
 			get_template_directory_uri() . '/assets/css/landing.css',
 			array('antiques-marketplace-style'),
-			'1.2.3'
+			'1.3.1'
 		);
 	}
 	wp_enqueue_script(
 		'antiques-marketplace-main',
 		get_template_directory_uri() . '/assets/js/main.js',
 		array(),
-		'1.2.12',
+		'1.3.0',
 		true
 	);
 	if (is_page('market-trends')) {
 		$dashboard_metrics = antiques_marketplace_get_dashboard_metrics();
+		$front             = antiques_marketplace_dashboard_front_data(is_array($dashboard_metrics) ? $dashboard_metrics : array());
+		$front['ai']       = array(
+			'ajaxUrl'        => admin_url('admin-ajax.php'),
+			'nonce'          => wp_create_nonce('antiques_dashboard_ai'),
+			'insightAction'  => 'antiques_dashboard_ai_insight',
+			'chatAction'     => 'antiques_dashboard_ai_chat',
+			'defaultRange'   => '12m',
+			'loadingInsight' => __('Writing market brief…', 'antiques-marketplace'),
+			'loadingChat'    => __('Thinking…', 'antiques-marketplace'),
+			'insightError'   => __('Could not load the market brief.', 'antiques-marketplace'),
+			'chatError'      => __('Could not get an answer.', 'antiques-marketplace'),
+			'emptyQuestion'  => __('Please enter a question.', 'antiques-marketplace'),
+			'youLabel'       => __('You', 'antiques-marketplace'),
+			'assistantLabel' => __('Trend AI', 'antiques-marketplace'),
+		);
 		wp_localize_script(
 			'antiques-marketplace-main',
 			'antiquesMarketplaceDashboard',
-			antiques_marketplace_dashboard_front_data(is_array($dashboard_metrics) ? $dashboard_metrics : array())
+			$front
 		);
 	}
 

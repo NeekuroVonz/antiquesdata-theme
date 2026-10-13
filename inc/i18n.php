@@ -205,6 +205,7 @@ function antiques_marketplace_page_title_msgids() {
 		'privacy-policy'      => 'Privacy Policy',
 		'terms-of-service'    => 'Terms of Service',
 		'commerce-disclosure' => 'Commerce disclosure',
+		'market-trends'       => 'Trend Dashboard',
 	);
 }
 

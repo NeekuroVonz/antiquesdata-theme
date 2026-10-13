@@ -382,20 +382,16 @@ function antiques_marketplace_dashboard_front_data( array $metrics ) {
 }
 
 /**
- * Create the Market trends page if missing.
+ * Create the Trend Dashboard page if missing; keep title in sync.
  */
 function antiques_marketplace_ensure_dashboard_page() {
-	if (get_option('antiques_marketplace_dashboard_page_version') === '1') {
-		return;
-	}
-
 	$existing = get_page_by_path('market-trends');
 	if (!$existing instanceof WP_Post) {
 		$page_id = wp_insert_post(
 			array(
 				'post_type'    => 'page',
 				'post_status'  => 'publish',
-				'post_title'   => 'Market trends',
+				'post_title'   => 'Trend Dashboard',
 				'post_name'    => 'market-trends',
 				'post_content' => '',
 			)
@@ -403,9 +399,19 @@ function antiques_marketplace_ensure_dashboard_page() {
 		if (is_int($page_id) && $page_id > 0) {
 			update_post_meta($page_id, '_wp_page_template', 'page-dashboard.php');
 		}
+		update_option('antiques_marketplace_dashboard_page_version', '2');
+		return;
 	}
 
-	update_option('antiques_marketplace_dashboard_page_version', '1');
+	if (get_option('antiques_marketplace_dashboard_page_version') !== '2') {
+		wp_update_post(
+			array(
+				'ID'         => (int) $existing->ID,
+				'post_title' => 'Trend Dashboard',
+			)
+		);
+		update_option('antiques_marketplace_dashboard_page_version', '2');
+	}
 }
 add_action('init', 'antiques_marketplace_ensure_dashboard_page');
 
