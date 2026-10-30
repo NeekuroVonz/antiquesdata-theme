@@ -471,7 +471,7 @@ function antiques_marketplace_build_product_translate_payload( $product, $lang, 
 	$details = array_slice($details, 0, 24);
 
 	$fingerprint = md5($mode . '|' . $lang . '|' . $title . '|' . $overview . '|' . $description . '|' . wp_json_encode($details));
-	$cache_key   = 'ant_product_tx_v6_' . (isset($product['product_id']) ? (int) $product['product_id'] : 0) . '_' . $fingerprint;
+	$cache_key   = 'ant_product_tx_v7_' . (isset($product['product_id']) ? (int) $product['product_id'] : 0) . '_' . $fingerprint;
 	$cached      = get_transient($cache_key);
 	if (is_array($cached) && isset($cached['title'])) {
 		return $cached;
@@ -489,7 +489,9 @@ function antiques_marketplace_build_product_translate_payload( $product, $lang, 
 			'mode'    => 'title',
 			'title'   => $translated_title,
 		);
-		set_transient($cache_key, $payload, DAY_IN_SECONDS * 7);
+		if (antiques_marketplace_translate_jobs_complete($jobs, $translated)) {
+			set_transient($cache_key, $payload, DAY_IN_SECONDS * 7);
+		}
 		return $payload;
 	}
 
@@ -558,8 +560,29 @@ function antiques_marketplace_build_product_translate_payload( $product, $lang, 
 		'description'      => antiques_marketplace_localize_catalog_section_headers($translated_description, $lang),
 		'details'          => $translated_details,
 	);
-	set_transient($cache_key, $payload, DAY_IN_SECONDS * 7);
+	if (antiques_marketplace_translate_jobs_complete($jobs, $translated)) {
+		set_transient($cache_key, $payload, DAY_IN_SECONDS * 7);
+	}
 	return $payload;
+}
+
+/**
+ * Whether every translate job came back translated (not the source fallback).
+ *
+ * Translate APIs fall back to the source text when rate-limited; caching that
+ * payload would pin the untranslated copy for a week.
+ *
+ * @param array<string, string> $jobs       Source texts.
+ * @param array<string, string> $translated Results keyed like $jobs.
+ * @return bool
+ */
+function antiques_marketplace_translate_jobs_complete( array $jobs, array $translated ) {
+	foreach ($jobs as $key => $source) {
+		if (!isset($translated[ $key ]) || trim((string) $translated[ $key ]) === trim((string) $source)) {
+			return false;
+		}
+	}
+	return true;
 }
 
 /**
