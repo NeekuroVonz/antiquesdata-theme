@@ -39,19 +39,31 @@
 })();
 
 (function () {
+  "use strict";
+
   var root = document.querySelector("[data-dashboard]");
   var data = window.antiquesMarketplaceDashboard;
   if (!root || !data || !data.periods) {
     return;
   }
 
-  var medianEl = root.querySelector("[data-dashboard-median]");
-  var captionEl = root.querySelector("[data-dashboard-caption]");
-  var resultsEl = root.querySelector("#dashboard-results");
-  var priceEl = root.querySelector("[data-dashboard-price]");
-  var volumeEl = root.querySelector("[data-dashboard-volume]");
-  var countryEl = root.querySelector("[data-dashboard-countries]");
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var locale = document.documentElement.lang || undefined;
+  var el = {
+    results: root.querySelector("#dashboard-results"),
+    median: root.querySelector("[data-dashboard-median]"),
+    lots: root.querySelector("[data-dashboard-lots]"),
+    span: root.querySelector("[data-dashboard-span]"),
+    top: root.querySelector("[data-dashboard-top]"),
+    topNote: root.querySelector("[data-dashboard-top-note]"),
+    summary: root.querySelector("[data-dashboard-summary]"),
+    price: root.querySelector("[data-dashboard-price]"),
+    volume: root.querySelector("[data-dashboard-volume]"),
+    countries: root.querySelector("[data-dashboard-countries]"),
+    range: root.querySelector(".trends-range")
+  };
   var buttons = root.querySelectorAll("[data-dashboard-range]");
+  var current = "12m";
 
   function escapeHtml(value) {
     return String(value)
@@ -61,363 +73,356 @@
       .replace(/"/g, "&quot;");
   }
 
-  function nonempty(point) {
-    return point && point.v !== null && point.v !== undefined && Number(point.v) !== 0;
+  // Restart a CSS animation class on an element.
+  function replay(node, className) {
+    node.classList.remove(className);
+    void node.offsetWidth;
+    node.classList.add(className);
   }
 
+  /* ---------- Numbers: tween between values, keeping prefix/suffix (¥, $, commas, decimals) ---------- */
+
+  var NUMBER = /^([^\d-]*)(-?[\d,]+(?:\.\d+)?)(.*)$/;
+
+  function tweenText(node, text) {
+    if (!node) {
+      return;
+    }
+    var to = NUMBER.exec(text);
+    var from = NUMBER.exec(node.textContent.trim());
+    if (reduce || !to || !from) {
+      node.textContent = text;
+      return;
+    }
+    var start = parseFloat(from[2].replace(/,/g, ""));
+    var end = parseFloat(to[2].replace(/,/g, ""));
+    var decimals = (to[2].split(".")[1] || "").length;
+    var began = performance.now();
+    var token = (node._tween = {});
+    (function frame(now) {
+      if (node._tween !== token) {
+        return;
+      }
+      var t = Math.min((now - began) / 700, 1);
+      var value = start + (end - start) * (1 - Math.pow(1 - t, 3));
+      node.textContent = t < 1
+        ? to[1] + value.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) + to[3]
+        : text;
+      if (t < 1) {
+        requestAnimationFrame(frame);
+      }
+    })(began);
+  }
+
+  /* ---------- Charts ---------- */
+
   function trimPoints(points) {
-    var list = (points || []).slice();
-    while (list.length && !nonempty(list[0])) {
+    var list = (points || []).filter(function (p) {
+      return p && p.v !== null && p.v !== undefined;
+    });
+    while (list.length && !Number(list[0].v)) {
       list.shift();
     }
-    while (list.length && !nonempty(list[list.length - 1])) {
+    while (list.length && !Number(list[list.length - 1].v)) {
       list.pop();
     }
     return list;
   }
 
-  function drawChart(target, points, key) {
+  function formatter(key, compact) {
+    if (key === "volume") {
+      return new Intl.NumberFormat(locale, compact ? { notation: "compact" } : {});
+    }
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: data.currency || "USD",
+      notation: compact ? "compact" : "standard",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: data.currency === "JPY" || compact ? 0 : 2
+    });
+  }
+
+  var palette = {
+    price: { stroke: "#9a7a3d", fill: "#c4a45e", opacity: 0.24 },
+    volume: { stroke: "#141821", fill: "#141821", opacity: 0.07 }
+  };
+
+  function drawChart(target, points, key, animate) {
     if (!target) {
       return;
     }
-    var trimmed = trimPoints(points);
-    var values = [];
-    var labels = [];
-    trimmed.forEach(function (point) {
-      values.push(Number(point.v));
-      labels.push(String(point.t || ""));
-    });
-    if (!values.length) {
+    var list = trimPoints(points);
+    if (!list.length) {
       target.innerHTML = '<p class="trends-chart__empty">' + escapeHtml(data.empty) + "</p>";
       target.setAttribute("aria-label", data.empty);
       return;
     }
-    var width = 640;
-    var height = 220;
-    var padL = 44;
-    var padR = 16;
-    var padT = 18;
-    var padB = 28;
-    var min = Math.min.apply(null, values);
+    var values = list.map(function (p) { return Number(p.v); });
+    var labels = list.map(function (p) { return String(p.t || ""); });
+    var w = Math.max(target.clientWidth, 280);
+    var h = Math.max(target.clientHeight, 160);
+    var pad = { l: 52, r: 12, t: 12, b: 26 };
     var max = Math.max.apply(null, values);
-    if (min === max) {
-      min = 0;
-    }
+    var min = Math.min.apply(null, values);
+    min = min === max ? 0 : Math.max(0, min - (max - min) * 0.15);
     var span = max - min || 1;
-    var innerW = width - padL - padR;
-    var innerH = height - padT - padB;
-    var coords = values.map(function (value, index) {
-      var x = padL + (values.length === 1 ? innerW / 2 : (index / (values.length - 1)) * innerW);
-      var y = padT + innerH - ((value - min) / span) * innerH;
-      return [x, y];
+    var iw = w - pad.l - pad.r;
+    var ih = h - pad.t - pad.b;
+    var xy = values.map(function (v, i) {
+      return [
+        pad.l + (values.length === 1 ? iw / 2 : (i / (values.length - 1)) * iw),
+        pad.t + ih - ((v - min) / span) * ih
+      ];
     });
-    var line = coords.map(function (pair, index) {
-      return (index === 0 ? "M" : "L") + pair[0].toFixed(1) + " " + pair[1].toFixed(1);
-    }).join(" ");
-    var area = line + " L" + coords[coords.length - 1][0].toFixed(1) + " " + (height - padB) +
-      " L" + coords[0][0].toFixed(1) + " " + (height - padB) + " Z";
-    var firstLabel = labels[0] || "";
-    var lastLabel = labels[labels.length - 1] || "";
-    var stroke = key === "volume" ? "#f4efe6" : "#c4a45e";
-    var fill = key === "volume" ? "rgba(244,239,230,0.12)" : "rgba(196,164,94,0.16)";
-    var numberFormatter = key === "volume"
-      ? new Intl.NumberFormat()
-      : new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency: data.currency || "USD",
-        maximumFractionDigits: data.currency === "JPY" ? 0 : 2
-      });
-    var chartLabel = key === "volume" ? data.volume_label : data.price_label;
-    var maxLabel = numberFormatter.format(max);
-    var minLabel = numberFormatter.format(min);
-    target.setAttribute(
-      "aria-label",
-      chartLabel + ": " + firstLabel + " to " + lastLabel + ". " + minLabel + " to " + maxLabel + "."
-    );
+    var line = xy.map(function (p, i) { return (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" ");
+    var base = (pad.t + ih).toFixed(1);
+    var area = line + " L" + xy[xy.length - 1][0].toFixed(1) + " " + base + " L" + xy[0][0].toFixed(1) + " " + base + " Z";
+    var color = palette[key] || palette.price;
+    var full = formatter(key, false);
+    var short = formatter(key, true);
+    var gid = "trends-grad-" + key;
+
+    var grid = "";
+    for (var g = 0; g <= 3; g++) {
+      var gy = pad.t + (ih / 3) * g;
+      var gv = max - (span / 3) * g;
+      grid += '<line x1="' + pad.l + '" x2="' + (w - pad.r) + '" y1="' + gy.toFixed(1) + '" y2="' + gy.toFixed(1) + '" stroke="#e8dfcf" stroke-dasharray="' + (g === 3 ? "0" : "3 4") + '"></line>' +
+        '<text x="' + (pad.l - 10) + '" y="' + (gy + 4).toFixed(1) + '" text-anchor="end" fill="#8b8376" font-size="11">' + escapeHtml(short.format(gv)) + "</text>";
+    }
+    var mid = Math.floor((labels.length - 1) / 2);
+    var xLabels = [[0, "start"], [mid, "middle"], [labels.length - 1, "end"]]
+      .filter(function (item, i, all) { return labels.length > 2 || i !== 1; })
+      .map(function (item) {
+        return '<text x="' + xy[item[0]][0].toFixed(1) + '" y="' + (h - 6) + '" text-anchor="' + item[1] + '" fill="#8b8376" font-size="11">' + escapeHtml(labels[item[0]]) + "</text>";
+      }).join("");
+    var last = xy[xy.length - 1];
+
+    target.setAttribute("aria-label",
+      (key === "volume" ? data.volume_label : data.price_label) + ": " + labels[0] + " – " + labels[labels.length - 1] +
+      ", " + full.format(Math.min.apply(null, values)) + " – " + full.format(max) + ".");
     target.innerHTML =
-      '<svg viewBox="0 0 ' + width + " " + height + '" role="img" aria-hidden="true">' +
-      '<line x1="' + padL + '" y1="' + padT + '" x2="' + (width - padR) + '" y2="' + padT + '" stroke="rgba(244,239,230,0.12)"></line>' +
-      '<line x1="' + padL + '" y1="' + (height - padB) + '" x2="' + (width - padR) + '" y2="' + (height - padB) + '" stroke="rgba(244,239,230,0.12)"></line>' +
-      '<path d="' + area + '" fill="' + fill + '"></path>' +
-      '<path d="' + line + '" fill="none" stroke="' + stroke + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path>' +
-      '<text x="' + (padL - 7) + '" y="' + (padT + 4) + '" fill="rgba(244,239,230,0.62)" font-size="10" text-anchor="end">' + escapeHtml(maxLabel) + "</text>" +
-      '<text x="' + (padL - 7) + '" y="' + (height - padB + 4) + '" fill="rgba(244,239,230,0.62)" font-size="10" text-anchor="end">' + escapeHtml(minLabel) + "</text>" +
-      '<text x="' + padL + '" y="' + (height - 8) + '" fill="rgba(244,239,230,0.55)" font-size="11">' + escapeHtml(firstLabel) + "</text>" +
-      '<text x="' + (width - padR) + '" y="' + (height - 8) + '" fill="rgba(244,239,230,0.55)" font-size="11" text-anchor="end">' + escapeHtml(lastLabel) + "</text>" +
-      "</svg>";
+      '<svg viewBox="0 0 ' + w + " " + h + '" width="' + w + '" height="' + h + '" aria-hidden="true">' +
+      '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="' + color.fill + '" stop-opacity="' + color.opacity + '"></stop>' +
+      '<stop offset="1" stop-color="' + color.fill + '" stop-opacity="0"></stop></linearGradient></defs>' +
+      grid + xLabels +
+      '<path class="trends-chart__area" d="' + area + '" fill="url(#' + gid + ')"></path>' +
+      '<path class="trends-chart__line" d="' + line + '" pathLength="1" fill="none" stroke="' + color.stroke + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path>' +
+      '<circle class="trends-chart__end" cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) + '" r="4" fill="' + color.stroke + '"></circle>' +
+      '<line class="trends-chart__guide" y1="' + pad.t + '" y2="' + base + '" stroke="' + color.stroke + '" stroke-opacity="0.35"></line>' +
+      '<circle class="trends-chart__dot" r="5" fill="#fffdf8" stroke="' + color.stroke + '" stroke-width="2"></circle>' +
+      "</svg>" +
+      '<div class="trends-chart__tip"></div>';
+
+    // Hover / touch: snap a guide, dot and tooltip to the nearest point.
+    var svg = target.querySelector("svg");
+    var guide = svg.querySelector(".trends-chart__guide");
+    var dot = svg.querySelector(".trends-chart__dot");
+    var tip = target.querySelector(".trends-chart__tip");
+    target.onpointermove = function (event) {
+      var box = svg.getBoundingClientRect();
+      var x = (event.clientX - box.left) * (w / box.width);
+      var i = Math.round(((x - pad.l) / iw) * (values.length - 1));
+      i = Math.max(0, Math.min(values.length - 1, i));
+      guide.setAttribute("x1", xy[i][0]);
+      guide.setAttribute("x2", xy[i][0]);
+      dot.setAttribute("cx", xy[i][0]);
+      dot.setAttribute("cy", xy[i][1]);
+      tip.innerHTML = escapeHtml(labels[i]) + "<strong>" + escapeHtml(full.format(values[i])) + "</strong>";
+      tip.style.left = (xy[i][0] / w) * 100 + "%";
+      tip.style.top = (xy[i][1] / h) * 100 + "%";
+      target.classList.add("is-hovering");
+    };
+    target.onpointerleave = function () {
+      target.classList.remove("is-hovering");
+    };
+
+    if (animate && !reduce) {
+      replay(target, "is-drawing");
+    }
   }
 
+  /* ---------- Who is buying ---------- */
+
   function renderCountries(countries) {
-    if (!countryEl) {
+    if (!el.countries) {
       return;
     }
     if (!countries || !countries.length) {
-      countryEl.innerHTML = '<li class="trends-who__empty">' + escapeHtml(data.empty) + "</li>";
+      el.countries.innerHTML = '<li class="trends-who__empty">' + escapeHtml(data.empty) + "</li>";
       return;
     }
-    countryEl.innerHTML = countries.map(function (country) {
-      var cats = (country.categories || []).map(function (category) {
-        return '<a href="' + escapeHtml(category.url || "#") + '">#' + escapeHtml(category.label || "") + "</a>";
+    el.countries.innerHTML = countries.map(function (c, i) {
+      var cats = (c.categories || []).map(function (cat) {
+        return '<a href="' + escapeHtml(cat.url || "#") + '">#' + escapeHtml(cat.label || "") + "</a>";
       }).join("");
       return '<li class="trends-who__row">' +
-        '<span class="trends-who__name">' + escapeHtml(country.name || "") + "</span>" +
-        '<span class="trends-who__lots">' + escapeHtml(country.lots || "") + "</span>" +
+        '<span class="trends-who__rank">' + (i < 9 ? "0" : "") + (i + 1) + "</span>" +
+        '<span class="trends-who__name">' + escapeHtml(c.name || "") + "</span>" +
+        '<span class="trends-who__bar" aria-hidden="true"><i style="--w: ' + Number(c.bar || 0) + '%"></i></span>' +
+        '<span class="trends-who__lots">' + escapeHtml(c.lots || "") + "</span>" +
         '<span class="trends-who__cats">' + cats + "</span>" +
-        '<span class="trends-who__price">' + escapeHtml(country.median || "") + "</span>" +
+        '<span class="trends-who__price">' + escapeHtml(c.median || "") + "</span>" +
         "</li>";
     }).join("");
-  }
-
-  var ai = data.ai || null;
-  var insightEl = root.querySelector("[data-dashboard-ai-insight]");
-  var threadEl = root.querySelector("[data-dashboard-ai-thread]");
-  var formEl = root.querySelector("[data-dashboard-ai-form]");
-  var inputEl = root.querySelector("[data-dashboard-ai-input]");
-  var sendEl = root.querySelector("[data-dashboard-ai-send]");
-  var promptButtons = root.querySelectorAll("[data-dashboard-ai-prompt]");
-  var currentRange = "12m";
-  var chatHistory = [];
-  var insightRequestId = 0;
-  var chatPending = false;
-
-  function formatInsightHtml(text) {
-    var lines = String(text || "").split(/\n/);
-    var parts = [];
-    var listItems = [];
-
-    function flushList() {
-      if (!listItems.length) {
-        return;
-      }
-      parts.push("<ul>" + listItems.join("") + "</ul>");
-      listItems = [];
+    if (!reduce) {
+      replay(el.countries, "is-growing");
     }
-
-    lines.forEach(function (line) {
-      var trimmed = line.trim();
-      if (!trimmed) {
-        flushList();
-        return;
-      }
-      if (/^[•・\-\*]/.test(trimmed)) {
-        listItems.push("<li>" + escapeHtml(trimmed.replace(/^[•・\-\*]\s*/, "")) + "</li>");
-        return;
-      }
-      flushList();
-      parts.push("<p>" + escapeHtml(trimmed) + "</p>");
-    });
-    flushList();
-    return parts.join("") || "<p>" + escapeHtml((ai && ai.insightError) || "—") + "</p>";
   }
 
-  function setInsightLoading() {
-    if (!insightEl || !ai) {
+  /* ---------- Range control ---------- */
+
+  var thumb = null;
+  if (el.range) {
+    thumb = document.createElement("span");
+    thumb.className = "trends-range__thumb";
+    thumb.setAttribute("aria-hidden", "true");
+    el.range.insertBefore(thumb, el.range.firstChild);
+    el.range.classList.add("has-thumb");
+  }
+
+  function moveThumb(button, instant) {
+    if (!thumb || !button) {
       return;
     }
-    insightEl.innerHTML = '<p class="trends-ai__loading">' + escapeHtml(ai.loadingInsight || "") + "</p>";
+    if (instant) {
+      thumb.style.transition = "none";
+    }
+    thumb.style.width = button.offsetWidth + "px";
+    thumb.style.transform = "translateX(" + button.offsetLeft + "px)";
+    if (instant) {
+      void thumb.offsetWidth;
+      thumb.style.transition = "";
+    }
   }
 
-  function loadInsight(range) {
-    if (!insightEl || !ai || !ai.ajaxUrl) {
+  function swapSummary(key) {
+    if (!el.summary || !data.summary || data.summary[key] === undefined) {
       return;
     }
-    var requestId = ++insightRequestId;
-    setInsightLoading();
-    var body = new URLSearchParams();
-    body.set("action", ai.insightAction || "antiques_dashboard_ai_insight");
-    body.set("nonce", ai.nonce || "");
-    body.set("range", range);
-    fetch(ai.ajaxUrl, {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
-      body: body.toString()
-    })
-      .then(function (response) {
-        return response.json();
-      })
-      .then(function (payload) {
-        if (requestId !== insightRequestId) {
-          return;
-        }
-        if (!payload || !payload.success || !payload.data || !payload.data.text) {
-          insightEl.innerHTML = "<p>" + escapeHtml((payload && payload.data && payload.data.message) || (ai && ai.insightError) || "") + "</p>";
-          return;
-        }
-        insightEl.innerHTML = formatInsightHtml(payload.data.text);
-      })
-      .catch(function () {
-        if (requestId !== insightRequestId) {
-          return;
-        }
-        insightEl.innerHTML = "<p>" + escapeHtml((ai && ai.insightError) || "") + "</p>";
-      });
-  }
-
-  function appendChatMessage(role, text) {
-    if (!threadEl) {
+    if (reduce) {
+      el.summary.innerHTML = data.summary[key];
       return;
     }
-    var label = role === "user"
-      ? ((ai && ai.youLabel) || "You")
-      : ((ai && ai.assistantLabel) || "Trend AI");
-    var row = document.createElement("div");
-    row.className = "trends-ai__msg trends-ai__msg--" + role;
-    row.innerHTML =
-      '<p class="trends-ai__msg-role">' + escapeHtml(label) + "</p>" +
-      '<p class="trends-ai__msg-text">' + escapeHtml(text) + "</p>";
-    threadEl.appendChild(row);
-    threadEl.scrollTop = threadEl.scrollHeight;
+    el.summary.classList.add("is-swapping");
+    window.setTimeout(function () {
+      el.summary.innerHTML = data.summary[key];
+      el.summary.classList.remove("is-swapping");
+    }, 220);
   }
 
-  function setChatPending(pending) {
-    chatPending = pending;
-    if (sendEl) {
-      sendEl.disabled = pending;
-    }
-    if (inputEl) {
-      inputEl.disabled = pending;
-    }
-  }
+  var seen = { charts: false };
 
-  function askChat(question) {
-    var q = String(question || "").trim();
-    if (!q || !ai || !ai.ajaxUrl || chatPending) {
-      if (!q && inputEl) {
-        inputEl.focus();
-      }
-      return;
-    }
-    appendChatMessage("user", q);
-    chatHistory.push({ role: "user", content: q });
-    if (inputEl) {
-      inputEl.value = "";
-    }
-    setChatPending(true);
-    appendChatMessage("assistant", (ai && ai.loadingChat) || "…");
-    var pendingNode = threadEl ? threadEl.lastElementChild : null;
-
-    var body = new URLSearchParams();
-    body.set("action", ai.chatAction || "antiques_dashboard_ai_chat");
-    body.set("nonce", ai.nonce || "");
-    body.set("range", currentRange);
-    body.set("question", q);
-    body.set("history", JSON.stringify(chatHistory.slice(-4)));
-
-    fetch(ai.ajaxUrl, {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
-      body: body.toString()
-    })
-      .then(function (response) {
-        return response.json().then(function (payload) {
-          return { ok: response.ok, payload: payload };
-        });
-      })
-      .then(function (result) {
-        var answer = "";
-        if (result.payload && result.payload.success && result.payload.data && result.payload.data.answer) {
-          answer = String(result.payload.data.answer);
-        } else if (result.payload && result.payload.data && result.payload.data.message) {
-          answer = String(result.payload.data.message);
-        } else {
-          answer = (ai && ai.chatError) || "";
-        }
-        if (pendingNode && pendingNode.querySelector) {
-          var textEl = pendingNode.querySelector(".trends-ai__msg-text");
-          if (textEl) {
-            textEl.textContent = answer;
-          }
-        } else {
-          appendChatMessage("assistant", answer);
-        }
-        chatHistory.push({ role: "assistant", content: answer });
-        if (chatHistory.length > 8) {
-          chatHistory = chatHistory.slice(-8);
-        }
-      })
-      .catch(function () {
-        if (pendingNode && pendingNode.querySelector) {
-          var textEl = pendingNode.querySelector(".trends-ai__msg-text");
-          if (textEl) {
-            textEl.textContent = (ai && ai.chatError) || "";
-          }
-        }
-      })
-      .then(function () {
-        setChatPending(false);
-        if (threadEl) {
-          threadEl.scrollTop = threadEl.scrollHeight;
-        }
-      });
-  }
-
-  function applyRange(key) {
+  function applyRange(key, initial) {
     var period = data.periods[key];
     if (!period) {
       return;
     }
-    currentRange = key;
+    current = key;
     root.setAttribute("data-dashboard-range", key);
-    if (medianEl) {
-      medianEl.textContent = period.median;
-    }
-    if (captionEl) {
-      captionEl.textContent = period.caption;
-    }
-    if (resultsEl) {
-      resultsEl.setAttribute("aria-labelledby", "dashboard-range-" + key);
-    }
-    drawChart(priceEl, period.price, "price");
-    drawChart(volumeEl, period.volume, "volume");
-    renderCountries(period.countries);
     buttons.forEach(function (button) {
       var on = button.getAttribute("data-dashboard-range") === key;
       button.classList.toggle("is-active", on);
       button.setAttribute("aria-selected", on ? "true" : "false");
       button.setAttribute("tabindex", on ? "0" : "-1");
+      if (on) {
+        moveThumb(button, initial);
+      }
     });
-    loadInsight(key);
+    if (el.results) {
+      el.results.setAttribute("aria-labelledby", "dashboard-range-" + key);
+    }
+    if (initial) {
+      return; // Server already rendered this range; charts draw when scrolled into view.
+    }
+    tweenText(el.median, period.median);
+    tweenText(el.lots, period.lots);
+    if (el.span) {
+      el.span.textContent = period.span;
+    }
+    if (el.top) {
+      el.top.textContent = period.top;
+    }
+    if (el.topNote) {
+      el.topNote.textContent = period.top_note;
+    }
+    swapSummary(key);
+    drawChart(el.price, period.price, "price", seen.charts);
+    drawChart(el.volume, period.volume, "volume", seen.charts);
+    renderCountries(period.countries);
   }
 
   buttons.forEach(function (button, index) {
     button.addEventListener("click", function () {
-      applyRange(button.getAttribute("data-dashboard-range"));
+      if (button.getAttribute("data-dashboard-range") !== current) {
+        applyRange(button.getAttribute("data-dashboard-range"));
+      }
     });
     button.addEventListener("keydown", function (event) {
-      var nextIndex = index;
+      var next = index;
       if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-        nextIndex = (index + 1) % buttons.length;
+        next = (index + 1) % buttons.length;
       } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-        nextIndex = (index - 1 + buttons.length) % buttons.length;
+        next = (index - 1 + buttons.length) % buttons.length;
       } else if (event.key === "Home") {
-        nextIndex = 0;
+        next = 0;
       } else if (event.key === "End") {
-        nextIndex = buttons.length - 1;
+        next = buttons.length - 1;
       } else {
         return;
       }
       event.preventDefault();
-      buttons[nextIndex].focus();
-      applyRange(buttons[nextIndex].getAttribute("data-dashboard-range"));
+      buttons[next].focus();
+      applyRange(buttons[next].getAttribute("data-dashboard-range"));
     });
   });
 
-  if (formEl) {
-    formEl.addEventListener("submit", function (event) {
-      event.preventDefault();
-      askChat(inputEl ? inputEl.value : "");
+  applyRange(current, true);
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () {
+      moveThumb(root.querySelector(".trends-range__btn.is-active"), true);
     });
   }
 
-  promptButtons.forEach(function (button) {
-    button.addEventListener("click", function () {
-      askChat(button.getAttribute("data-dashboard-ai-prompt") || button.textContent || "");
+  // First draw: charts and bars animate when they scroll into view.
+  var period = data.periods[current];
+  drawChart(el.price, period.price, "price", false);
+  drawChart(el.volume, period.volume, "volume", false);
+  if ("IntersectionObserver" in window && !reduce) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) {
+          return;
+        }
+        io.unobserve(entry.target);
+        if (entry.target === el.countries) {
+          replay(el.countries, "is-growing");
+        } else {
+          seen.charts = true;
+          replay(entry.target, "is-drawing");
+        }
+      });
+    }, { threshold: 0.3 });
+    [el.price, el.volume, el.countries].forEach(function (node) {
+      if (node) {
+        io.observe(node);
+      }
     });
-  });
+  } else {
+    seen.charts = true;
+  }
 
-  applyRange((ai && ai.defaultRange) || "12m");
+  // Redraw charts at the new size (text stays crisp) and keep the thumb aligned.
+  var resizeTimer;
+  window.addEventListener("resize", function () {
+    window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(function () {
+      var p = data.periods[current];
+      drawChart(el.price, p.price, "price", false);
+      drawChart(el.volume, p.volume, "volume", false);
+      moveThumb(root.querySelector(".trends-range__btn.is-active"), true);
+    }, 150);
+  });
 })();
 
 (function () {
@@ -1093,4 +1098,135 @@
   } else {
     scheduleTranslation();
   }
+})();
+
+(function () {
+  "use strict";
+
+  // Header shadow once the page scrolls (all pages).
+  var header = document.querySelector(".site-header");
+  if (header) {
+    var onScroll = function () {
+      header.classList.toggle("is-scrolled", window.scrollY > 8);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+  }
+
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce || !("IntersectionObserver" in window)) {
+    return;
+  }
+
+  // Hero photo drifts slower than the page (light parallax), only while the hero is on screen.
+  var heroMedia = document.querySelector(".land-hero__media");
+  if (heroMedia && window.matchMedia("(min-width: 901px)").matches) {
+    var heroTicking = false;
+    var heroLimit = heroMedia.parentNode.offsetHeight;
+    window.addEventListener("resize", function () {
+      heroLimit = heroMedia.parentNode.offsetHeight;
+    }, { passive: true });
+    window.addEventListener("scroll", function () {
+      if (heroTicking || window.scrollY > heroLimit) {
+        return;
+      }
+      heroTicking = true;
+      window.requestAnimationFrame(function () {
+        heroMedia.style.setProperty("--hero-shift", Math.round(window.scrollY * 0.22) + "px");
+        heroTicking = false;
+      });
+    }, { passive: true });
+  }
+
+  // Scroll reveal on every page; siblings in a grid get a stagger.
+  var targets = document.querySelectorAll(
+    // Landing
+    ".land-pain h2, .land-pain article, .land-closing," +
+    ".land-features h2, .land-features article," +
+    ".land-split h2, .land-genres li, .land-why p, .land-why__stats > div, .land-why img," +
+    ".land-audience h2, .land-audience article," +
+    ".land-pricing__intro, .land-price-card, .land-checks li," +
+    ".land-faq h2, .land-faq__item," +
+    // Static, auth, subscribe and legal pages
+    ".static-page-title, .site-main--contained > .panel, .static-page-content > *," +
+    // Catalog
+    ".category-hub, .filter-panel, .results-meta, .listing-grid > .listing-card," +
+    // Trend dashboard
+    ".trends-summary, .trends-chart, .trends-who," +
+    // Product detail
+    ".product-detail-image-wrap, .product-detail-info, .product-details-grid, .product-detail-description, .product-bid-history," +
+    // Footer
+    ".footer-brand, .footer-nav > div, .footer-bottom"
+  );
+  if (!targets.length) {
+    return;
+  }
+
+  // Elements already on screen at load are left alone: hiding them after first paint would flash.
+  targets = Array.prototype.filter.call(targets, function (el) {
+    return el.getBoundingClientRect().top > window.innerHeight;
+  });
+
+  targets.forEach(function (el) {
+    var i = Array.prototype.indexOf.call(el.parentNode.children, el);
+    el.classList.add("reveal");
+    el.style.setProperty("--reveal-delay", Math.min(i, 8) * 70 + "ms");
+  });
+
+  // Bottom margin 0 so elements at the very end of the page (footer) still trigger.
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (!entry.isIntersecting) {
+        return;
+      }
+      var el = entry.target;
+      el.classList.add("is-visible");
+      io.unobserve(el);
+      // Drop reveal classes after the transition (timer: transitionend is unreliable in background tabs)
+      // so each element's own hover transitions apply again.
+      window.setTimeout(function () {
+        el.classList.remove("reveal", "is-visible");
+        el.style.removeProperty("--reveal-delay");
+      }, 1500);
+    });
+  }, { threshold: 0 });
+
+  targets.forEach(function (el) {
+    io.observe(el);
+  });
+
+  // Count-up for the domestic vs overseas price-gap numbers.
+  var counters = document.querySelectorAll(".land-why__stats strong");
+  var countIo = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (!entry.isIntersecting) {
+        return;
+      }
+      countIo.unobserve(entry.target);
+      var el = entry.target;
+      var text = el.textContent;
+      var target = parseInt(text.replace(/[^\d]/g, ""), 10);
+      var prefix = text.match(/^[^\d]*/)[0];
+      if (!target) {
+        return;
+      }
+      var start = performance.now();
+      var duration = 1400;
+      var tick = function (now) {
+        var t = Math.min((now - start) / duration, 1);
+        var eased = 1 - Math.pow(1 - t, 3);
+        el.textContent = prefix + Math.round(target * eased).toLocaleString("en-US");
+        if (t < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          el.textContent = text;
+        }
+      };
+      requestAnimationFrame(tick);
+    });
+  }, { threshold: 0.6 });
+
+  counters.forEach(function (el) {
+    countIo.observe(el);
+  });
 })();

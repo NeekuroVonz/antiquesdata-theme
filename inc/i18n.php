@@ -15,6 +15,14 @@ if (!defined('ABSPATH')) {
  * @return string "en" or "ja"
  */
 function antiques_marketplace_get_lang() {
+	// Background jobs (e.g. the dashboard summary cron) force a language explicitly.
+	if (!empty($GLOBALS['antiques_marketplace_forced_lang'])) {
+		return 'ja' === $GLOBALS['antiques_marketplace_forced_lang'] ? 'ja' : 'en';
+	}
+	// ?lang= wins so /?lang=ja is a crawlable Japanese URL (hreflang target).
+	if (isset($_GET['lang']) && in_array($_GET['lang'], array('en', 'ja'), true)) {
+		return (string) $_GET['lang'];
+	}
 	if (isset($_COOKIE['antiques_lang']) && in_array($_COOKIE['antiques_lang'], array('en', 'ja'), true)) {
 		return (string) $_COOKIE['antiques_lang'];
 	}
@@ -65,13 +73,8 @@ function antiques_marketplace_handle_lang_switch() {
 	if (!in_array($lang, array('en', 'ja'), true)) {
 		return;
 	}
+	// No redirect: the ?lang URL renders directly so search engines can index each language.
 	antiques_marketplace_set_lang_cookie($lang);
-	$redirect = remove_query_arg('lang');
-	if (!$redirect) {
-		$redirect = home_url('/');
-	}
-	wp_safe_redirect($redirect);
-	exit;
 }
 add_action('init', 'antiques_marketplace_handle_lang_switch', 1);
 

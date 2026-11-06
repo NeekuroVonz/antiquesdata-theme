@@ -9,9 +9,10 @@ if (!defined('ABSPATH')) {
 }
 
 $trial_url = antiques_marketplace_trial_url();
-$hero_img  = antiques_marketplace_theme_asset('images/hero-ceramics.png');
-$why_img   = antiques_marketplace_theme_asset('images/why-ceramics.png');
-$price_img = antiques_marketplace_theme_asset('images/pricing-ceramics.png');
+$hero_img  = antiques_marketplace_theme_asset('images/hero-bg.webp');
+$hero_sm   = antiques_marketplace_theme_asset('images/hero-bg-800.webp');
+$why_img   = antiques_marketplace_theme_asset('images/why.webp');
+$price_img = antiques_marketplace_theme_asset('images/pricing.webp');
 
 $genres = array(
 	__('Tea ware', 'antiques-marketplace'),
@@ -57,6 +58,9 @@ $faqs = array(
 ?>
 
 <section class="land-hero">
+	<div class="land-hero__media" aria-hidden="true">
+		<img src="<?php echo esc_url($hero_img); ?>" srcset="<?php echo esc_url($hero_sm); ?> 800w, <?php echo esc_url($hero_img); ?> 1448w" sizes="(max-width: 900px) 100vw, 60vw" alt="" width="1448" height="1086" decoding="async" fetchpriority="high">
+	</div>
 	<div class="land-inner land-hero__grid">
 		<div class="land-hero__copy">
 			<p class="land-kicker"><?php esc_html_e('Overseas market data for Japanese antiques', 'antiques-marketplace'); ?></p>
@@ -83,46 +87,11 @@ $faqs = array(
 					<?php esc_html_e('Support buying and selling decisions', 'antiques-marketplace'); ?>
 				</li>
 			</ul>
-			<a class="btn btn-gold land-hero__cta" href="<?php echo esc_url($trial_url); ?>"><?php esc_html_e('Start a free trial', 'antiques-marketplace'); ?></a>
-			<p class="land-note"><?php esc_html_e('¥5,000/month (tax included) · No credit card · 7-day free trial', 'antiques-marketplace'); ?></p>
-		</div>
-
-		<div class="land-hero__stage" aria-hidden="true">
-			<img class="land-float land-float--jar" src="<?php echo esc_url($hero_img); ?>" alt="" width="420" height="315" decoding="async">
-			<div class="land-laptop">
-				<div class="land-dash">
-					<div class="land-dash__brand">Antique Data Japan</div>
-					<div class="land-dash__kpis">
-						<div><span>データ件数</span><strong>25,854</strong></div>
-						<div><span>平均落札</span><strong>¥482,000</strong></div>
-						<div><span>累計流通額</span><strong>¥12,500,000,000</strong></div>
-						<div><span>今月</span><strong>1,245</strong></div>
-					</div>
-					<div class="land-dash__chart">
-						<span style="height:38%"></span>
-						<span style="height:52%"></span>
-						<span style="height:44%"></span>
-						<span style="height:61%"></span>
-						<span style="height:48%"></span>
-						<span style="height:72%"></span>
-						<span style="height:58%"></span>
-						<span style="height:81%"></span>
-						<span style="height:64%"></span>
-						<span style="height:90%"></span>
-					</div>
-					<div class="land-dash__rows">
-						<div><i></i><b>Sotheby’s New York</b><em>¥2,180,000</em></div>
-						<div><i></i><b>Christie’s London</b><em>¥1,640,000</em></div>
-						<div><i></i><b>Bonhams Hong Kong</b><em>¥980,000</em></div>
-					</div>
-				</div>
+			<div class="land-hero__actions">
+				<a class="btn btn-gold land-hero__cta" href="<?php echo esc_url($trial_url); ?>"><?php esc_html_e('Start a free trial', 'antiques-marketplace'); ?></a>
+				<a class="land-hero__more" href="#features"><?php esc_html_e('See what it does', 'antiques-marketplace'); ?></a>
 			</div>
-			<aside class="land-phone">
-				<img src="<?php echo esc_url($hero_img); ?>" alt="" width="420" height="315" decoding="async">
-				<p>抹茶茶碗 / Raku chawan</p>
-				<strong>¥1,280,000</strong>
-			</aside>
-			<img class="land-float land-float--bowls" src="<?php echo esc_url($hero_img); ?>" alt="" width="420" height="315" decoding="async" fetchpriority="high">
+			<p class="land-note"><?php esc_html_e('¥5,000/month (tax included) · No credit card · 7-day free trial', 'antiques-marketplace'); ?></p>
 		</div>
 	</div>
 </section>
@@ -213,7 +182,7 @@ $faqs = array(
 					<em><?php esc_html_e('About 9.3× the domestic average', 'antiques-marketplace'); ?></em>
 				</div>
 			</div>
-			<img src="<?php echo esc_url($why_img); ?>" alt="<?php esc_attr_e('Japanese ceramic jar and porcelain vase', 'antiques-marketplace'); ?>" width="900" height="675" loading="lazy" decoding="async">
+			<img src="<?php echo esc_url($why_img); ?>" alt="<?php esc_attr_e('Japanese ceramic jar and porcelain vase', 'antiques-marketplace'); ?>" width="1280" height="720" loading="lazy" decoding="async">
 		</div>
 	</div>
 </section>
@@ -251,7 +220,7 @@ $faqs = array(
 		<div class="land-pricing__intro">
 			<h2><?php esc_html_e('A simple pricing plan', 'antiques-marketplace'); ?></h2>
 			<p><?php esc_html_e('One plan. Search overseas hammers, compare them in yen, and export what you need.', 'antiques-marketplace'); ?></p>
-			<img src="<?php echo esc_url($price_img); ?>" alt="<?php esc_attr_e('Japanese tea caddy, jar, and tea bowl', 'antiques-marketplace'); ?>" width="900" height="675" loading="lazy" decoding="async">
+			<img src="<?php echo esc_url($price_img); ?>" alt="<?php esc_attr_e('Japanese tea caddy, jar, and tea bowl', 'antiques-marketplace'); ?>" width="1280" height="720" loading="lazy" decoding="async">
 		</div>
 		<div class="land-price-card">
 			<p class="land-kicker"><?php esc_html_e('Standard plan', 'antiques-marketplace'); ?></p>

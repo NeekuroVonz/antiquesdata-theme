@@ -14,13 +14,14 @@ antiques_marketplace_load_env();
 
 require_once get_template_directory() . '/inc/membership.php';
 require_once get_template_directory() . '/inc/i18n.php';
+require_once get_template_directory() . '/inc/seo.php';
 require_once get_template_directory() . '/inc/database.php';
 require_once get_template_directory() . '/inc/currency.php';
 require_once get_template_directory() . '/inc/categories.php';
 require_once get_template_directory() . '/inc/bids.php';
 require_once get_template_directory() . '/inc/catalog.php';
 require_once get_template_directory() . '/inc/dashboard.php';
-require_once get_template_directory() . '/inc/dashboard-ai.php';
+require_once get_template_directory() . '/inc/dashboard-summary.php';
 require_once get_template_directory() . '/inc/listings.php';
 
 /**
@@ -50,38 +51,32 @@ function antiques_marketplace_assets() {
 		array(),
 		null
 	);
-	wp_enqueue_style('antiques-marketplace-style', get_stylesheet_uri(), array('antiques-fonts'), '1.3.5');
+	wp_enqueue_style('antiques-marketplace-style', get_stylesheet_uri(), array('antiques-fonts'), '1.5.2');
 	if (is_front_page()) {
 		wp_enqueue_style(
 			'antiques-landing',
 			get_template_directory_uri() . '/assets/css/landing.css',
 			array('antiques-marketplace-style'),
-			'1.3.1'
+			'1.4.2'
 		);
 	}
 	wp_enqueue_script(
 		'antiques-marketplace-main',
 		get_template_directory_uri() . '/assets/js/main.js',
 		array(),
-		'1.3.0',
+		'1.5.2',
 		true
 	);
 	if (is_page('market-trends')) {
 		$dashboard_metrics = antiques_marketplace_get_dashboard_metrics();
 		$front             = antiques_marketplace_dashboard_front_data(is_array($dashboard_metrics) ? $dashboard_metrics : array());
-		$front['ai']       = array(
-			'ajaxUrl'        => admin_url('admin-ajax.php'),
-			'nonce'          => wp_create_nonce('antiques_dashboard_ai'),
-			'insightAction'  => 'antiques_dashboard_ai_insight',
-			'chatAction'     => 'antiques_dashboard_ai_chat',
-			'defaultRange'   => '12m',
-			'loadingInsight' => __('Writing market brief…', 'antiques-marketplace'),
-			'loadingChat'    => __('Thinking…', 'antiques-marketplace'),
-			'insightError'   => __('Could not load the market brief.', 'antiques-marketplace'),
-			'chatError'      => __('Could not get an answer.', 'antiques-marketplace'),
-			'emptyQuestion'  => __('Please enter a question.', 'antiques-marketplace'),
-			'youLabel'       => __('You', 'antiques-marketplace'),
-			'assistantLabel' => __('Trend AI', 'antiques-marketplace'),
+		$summary           = antiques_marketplace_dashboard_summary(is_array($dashboard_metrics) ? $dashboard_metrics : array());
+		$front['summary']  = array_map('antiques_marketplace_dashboard_summary_html', $summary['items']);
+		wp_enqueue_style(
+			'antiques-dashboard',
+			get_template_directory_uri() . '/assets/css/dashboard.css',
+			array('antiques-marketplace-style'),
+			'1.0.2'
 		);
 		wp_localize_script(
 			'antiques-marketplace-main',

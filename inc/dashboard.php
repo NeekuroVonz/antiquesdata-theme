@@ -335,8 +335,14 @@ function antiques_marketplace_dashboard_front_data( array $metrics ) {
 			);
 		$lots = (int) ( $period['lots'] ?? 0 );
 		$countries = array();
+		$max_lots  = 0;
+		foreach ((array) ( $period['countries'] ?? array() ) as $country) {
+			$max_lots = max($max_lots, (int) ( $country['lots'] ?? 0 ));
+		}
 		foreach ((array) ( $period['countries'] ?? array() ) as $country) {
 			$countries[] = array(
+				// Bar width relative to the busiest country (0–100).
+				'bar'        => $max_lots > 0 ? round((int) ( $country['lots'] ?? 0 ) / $max_lots * 100, 1) : 0,
 				'name'       => (string) ( $country['name'] ?? '' ),
 				'lots'       => sprintf(
 					/* translators: %s: formatted lot count */
@@ -357,8 +363,20 @@ function antiques_marketplace_dashboard_front_data( array $metrics ) {
 				substr($last_end, 0, 10)
 			)
 			: __('No available dates', 'antiques-marketplace');
+		$top       = isset($period['countries'][0]) && is_array($period['countries'][0]) ? $period['countries'][0] : array();
+		$top_lots  = (int) ( $top['lots'] ?? 0 );
 		$periods[ $key ] = array(
 			'median'    => antiques_marketplace_format_currency_amount((float) ( $period['median_eur'] ?? 0 )),
+			'lots'      => number_format_i18n($lots),
+			'top'       => (string) ( $top['name'] ?? '—' ),
+			'top_note'  => $lots > 0 && $top_lots > 0
+				? sprintf(
+					/* translators: %s: percent of lots */
+					__('%s%% of lots', 'antiques-marketplace'),
+					number_format_i18n($top_lots / $lots * 100, 0)
+				)
+				: '',
+			'span'      => $date_span,
 			'caption'   => sprintf(
 				/* translators: 1: period label, 2: available date span, 3: lot count */
 				__('P50 hammer, %1$s view. Available data: %2$s. %3$s lots.', 'antiques-marketplace'),

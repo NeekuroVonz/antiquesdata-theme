@@ -81,4 +81,4 @@ $trial_url    = antiques_marketplace_trial_url();
 	</div>
 </header>
 
-<main id="content" class="site-main<?php echo is_front_page() ? '' : ' site-main--contained'; ?>">
+<main id="content" class="site-main<?php echo ( is_front_page() || is_page('market-trends') ) ? '' : ' site-main--contained'; ?>">

@@ -255,6 +255,15 @@ function antiques_marketplace_enforce_membership() {
 		return;
 	}
 
+	// Crawlers must reach robots.txt and the sitemap.
+	// Query vars are client-settable, so only exempt values that map to a real sitemap.
+	$sitemap    = get_query_var('sitemap');
+	$is_sitemap = 'index' === $sitemap
+		|| (is_string($sitemap) && '' !== $sitemap && function_exists('wp_sitemaps_get_server') && wp_sitemaps_get_server()->registry->get_provider($sitemap));
+	if (is_robots() || $is_sitemap || in_array(get_query_var('sitemap-stylesheet'), array('sitemap', 'index'), true)) {
+		return;
+	}
+
 	if (is_user_logged_in() && current_user_can('manage_options')) {
 		return;
 	}

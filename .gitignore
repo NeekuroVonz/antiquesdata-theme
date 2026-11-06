@@ -253,3 +253,6 @@ wp-config.php
 # uncomment the next line
 #/wp-content/themes
 .cursor/
+
+# macOS
+.DS_Store
